@@ -22,23 +22,25 @@
 -module(leofs_test_commons).
 
 -include("leofs_test.hrl").
+-include("leo_redundant_manager.hrl").
 
 -export([run/2]).
 
+-define(ATTACH_NODE,  'storage_3@127.0.0.1').
+-define(DETACH_NODE,  'storage_3@127.0.0.1').
+-define(SUSPEND_NODE, 'storage_1@127.0.0.1').
+-define(RESUME_NODE,  'storage_1@127.0.0.1').
+
 
 %% @doc Execute tests
+run(create_bucket, S3Conf) ->
+    catch erlcloud_s3:create_bucket(?env_bucket(), S3Conf),
+    ok;
 run(put_objects, S3Conf) ->
-    io:format("* ~s", ["start:put objects >>"]),
     Keys = ?env_keys(),
     ok = put_object(S3Conf, Keys),
     ok;
-run(check_redundancies, S3Conf) ->
-    io:format("* ~s", ["start:check redundnacies of each objects >>"]),
-    Keys = ?env_keys(),
-    ok = check_redundancies(S3Conf, Keys, []),
-    ok;
 run(del_objects, S3Conf) ->
-    io:format("* ~s", ["start:remove objects >>"]),
     Keys = ?env_keys(),
     Keys_1 = case (Keys > 10000) of
                  true ->
@@ -47,6 +49,30 @@ run(del_objects, S3Conf) ->
                      100
              end,
     ok = del_object(S3Conf, Keys_1, sets:new()),
+    ok;
+run(check_redundancies, S3Conf) ->
+    Keys = ?env_keys(),
+    ok = check_redundancies(S3Conf, Keys, []),
+    ok;
+
+%% Operate a node
+run(attach_node,_S3Conf) ->
+    ok = attach_node(?ATTACH_NODE),
+    ok;
+run(detach_node,_S3Conf) ->
+    ok = detach_node(?DETACH_NODE),
+    ok;
+run(suspend_node,_S3Conf) ->
+    ok = suspend_node(?SUSPEND_NODE),
+    ok;
+run(resume_node,_S3Conf) ->
+    ok = resume_node(?RESUME_NODE),
+    ok;
+run(stop_and_restart,_S3Conf) ->
+    ok = stop_and_restart(?SUSPEND_NODE),
+    ok;
+run(watch_mq,_S3Conf) ->
+    ok = watch_mq(),
     ok;
 run(_,_) ->
     ok.
@@ -104,6 +130,7 @@ del_object(_Conf, 0, Keys) ->
         0 ->
             ok;
         _ ->
+            io:format("Error: ~p~n", [Errors]),
             erlang:error("del_object/3 - found inconsistent object")
     end;
 del_object(Conf, Index, Keys) ->
@@ -151,7 +178,7 @@ check_redundancies_1(Key, Errors) ->
         {ok, RetL} when length(RetL) == ?NUM_OF_REPLICAS ->
             L1 = lists:nth(1, RetL),
             L2 = lists:nth(2, RetL),
-            case compare_1(L1, L2) of
+            case compare_1(Key, L1, L2) of
                 ok ->
                     Errors;
                 _ ->
@@ -165,24 +192,144 @@ check_redundancies_1(Key, Errors) ->
 
 
 %% @private
-compare_1(L1, L2) ->
+compare_1(Key, L1, L2) ->
     %% node-name
     case (element(1, L1) /= element(1, L2)) of
         true ->
-            compare_2(2, L1, L2);
+            compare_2(2, Key, L1, L2);
         false ->
+            io:format("Error: ~p, ~p, ~p~n", [Key, L1, L2]),
             erlang:error("compare_1/2 - found invalid redundancies")
     end.
 
-compare_2(9,_L1,_L2) ->
+compare_2(9,_Key,_L1,_L2) ->
     ok;
-compare_2(Index, L1, L2) ->
+compare_2(Index, Key, L1, L2) ->
     case (element(Index, L1) == element(Index, L2)) of
         true ->
-            compare_2(Index + 1, L1, L2);
+            compare_2(Index + 1, Key, L1, L2);
         false ->
+            io:format("Error: ~p, ~p, ~p~n", [Key, L1, L2]),
             erlang:error("compare_2/3 - found an inconsistent object")
     end.
+
+
+%% ---------------------------------------------------------
+%% Inner Function - Operat a node
+%% ---------------------------------------------------------
+attach_node(Node) ->
+    case rpc:call(?env_manager(), leo_manager_mnesia,
+                  get_storage_node_by_name, [Node]) of
+        not_found ->
+            Path = filename:join([?env_leofs_dir(), ?node_to_path(Node)]),
+            os:cmd(Path ++ " start"),
+
+            attach_node_1(Node, 0);
+        _ ->
+            io:format("ERROR: ~s ~w~n", ["Could not attach the node:", Node]),
+            halt()
+    end.
+
+attach_node_1(Node, 3) ->
+    io:format("ERROR: ~s ~w~n", ["Could not attach the node:", Node]),
+    halt();
+attach_node_1(Node, Times) ->
+    case rpc:call(?env_manager(), leo_manager_mnesia,
+                  get_storage_node_by_name, [Node]) of
+        {ok, #node_state{state = ?STATE_ATTACHED}} ->
+            ok;
+        _ ->
+            timer:sleep(timer:seconds(1)),
+            attach_node_1(Node, Times + 1)
+    end.
+
+
+detach_node(Node) ->
+    Manager = ?env_manager(),
+    case rpc:call(Manager, leo_manager_api, detach, [Node]) of
+        ok ->
+            case rpc:call(Manager, leo_manager_api, rebalance, [null]) of
+                ok ->
+                    ok;
+                _Error ->
+                    io:format("ERROR: ~s~n", ["Fail rebalance (detach-node)"]),
+                    halt()
+            end;
+        _Error ->
+            io:format("ERROR: ~s ~w~n", ["Could not detach the node:", Node]),
+            halt()
+    end.
+
+suspend_node(Node) ->
+    case rpc:call(?env_manager(), leo_manager_api, suspend, [Node]) of
+        ok ->
+            ok;
+        _Error ->
+            io:format("ERROR: ~s ~w~n", ["Could not suspend the node:", Node]),
+            halt()
+    end.
+
+resume_node(Node) ->
+    case rpc:call(?env_manager(), leo_manager_api, resume, [Node]) of
+        ok ->
+            ok;
+        _Error ->
+            io:format("ERROR: ~s ~w~n", ["Could not resume the node:", Node]),
+            halt()
+    end.
+
+stop_and_restart(Node) ->
+    Path = filename:join([?env_leofs_dir(), ?node_to_path(Node)]),
+    os:cmd(Path ++ " stop"),
+    timer:sleep(timer:seconds(3)),
+    os:cmd(Path ++ " start"),
+    ok.
+
+watch_mq() ->
+    case rpc:call(?env_manager(),
+                  leo_manager_mnesia, get_storage_nodes_all, []) of
+        {ok, RetL} ->
+            Nodes = [N || #node_state{node = N,
+                                      state = ?STATE_RUNNING} <- RetL],
+            watch_mq_1(Nodes);
+        _ ->
+            io:format("ERROR: ~s~n", ["Could not retrieve the running nodes"]),
+            halt()
+    end.
+
+watch_mq_1([]) ->
+    io:format("~s", ["|"]),
+    timer:sleep(timer:seconds(5)),
+    io:format("~s", ["<<"]),
+    ok;
+watch_mq_1([Node|Rest] = Nodes) ->
+    io:format("~s", ["-"]),
+    case rpc:call(?env_manager(),
+                  leo_manager_api, mq_stats, [Node]) of
+        {ok, RetL} ->
+            case watch_mq_2(RetL) of
+                ok ->
+                    watch_mq_1(Rest);
+                _ ->
+                    timer:sleep(timer:seconds(5)),
+                    watch_mq_1(Nodes)
+            end;
+        _ ->
+            io:format("ERROR: ~s~n", ["Could not retrieve mq-state of the node"]),
+            halt()
+    end.
+
+watch_mq_2([]) ->
+    ok;
+watch_mq_2([#mq_state{state = Stats}|Rest]) ->
+    case (leo_misc:get_value('consumer_num_of_msgs', Stats, 0) == 0 andalso
+          leo_misc:get_value('consumer_status', Stats) == 'idling') of
+        true ->
+            watch_mq_2(Rest);
+        false ->
+            still_running
+    end.
+
 
 %% % Retrieve list of objects from the LeoFS
 %% Objs = erlcloud_s3:list_objects("erlang", Conf_1),

@@ -26,6 +26,11 @@
 
 -export([main/1]).
 
+
+%% @doc Execute LeoFS integration test
+%%
+-spec(main(Args) ->
+             ok when Args::[string()]).
 main(["help"]) ->
     help();
 main(["version"]) ->
@@ -38,22 +43,25 @@ main(Args) ->
     [] = os:cmd("epmd -daemon"),
     net_kernel:start([?NODE, longnames]),
 
-    Cookie = leo_misc:get_value(?PROP_COOKIE, Opts, ?COOKIE),
-    erlang:set_cookie(node(), list_to_atom(Cookie)),
-
-    Manager = leo_misc:get_value(?PROP_MANAGER, Opts, ?MANAGER_NODE),
-    ok = application:set_env(?APP, ?PROP_MANAGER, list_to_atom(Manager)),
-
-    Keys = leo_misc:get_value(?PROP_KEYS, Opts, ?NUM_OF_KEYS),
-    ok = application:set_env(?APP, ?PROP_KEYS, Keys),
 
     Bucket = leo_misc:get_value(?PROP_BUCKET, Opts, ?BUCKET),
     ok = application:set_env(?APP, ?PROP_BUCKET, Bucket),
 
+    Cookie = leo_misc:get_value(?PROP_COOKIE, Opts, ?COOKIE),
+    erlang:set_cookie(node(), list_to_atom(Cookie)),
+
+    Keys = leo_misc:get_value(?PROP_KEYS, Opts, ?NUM_OF_KEYS),
+    ok = application:set_env(?APP, ?PROP_KEYS, Keys),
+
+    LeoFSDir = leo_misc:get_value(?PROP_LEOFS_DIR, Opts, []),
+    ok = application:set_env(?APP, ?PROP_LEOFS_DIR, LeoFSDir),
+
+    Manager = leo_misc:get_value(?PROP_MANAGER, Opts, ?MANAGER_NODE),
+    ok = application:set_env(?APP, ?PROP_MANAGER, list_to_atom(Manager)),
+
     %% Load/Start apps
     ok = code:add_paths(["ebin",
                          "deps/erlcloud/ebin",
-                         "deps/lhttpc/ebin",
                          "deps/jsx/ebin",
                          "deps/getopt/ebin",
                          "deps/leo_commons/ebin"
@@ -62,7 +70,6 @@ main(Args) ->
     ok = application:start(asn1),
     ok = application:start(public_key),
     ok = application:start(ssl),
-    ok = application:start(lhttpc),
     ok = application:start(xmerl),
 
     %% Launch erlcloud
@@ -72,8 +79,21 @@ main(Args) ->
                              ?S3_HOST,
                              ?S3_PORT),
 
+    %% Launch LeoFS
+    case ?env_leofs_dir() of
+        [] ->
+            void;
+        LeoFSDir ->
+            io:format("~s~n", [LeoFSDir]),
+            ok = leofs_test_launcher:run(LeoFSDir)
+    end,
+
     %% Execute scenarios:
-    ok = leofs_test_s1:run(S3Conf#aws_config{s3_scheme = "http://"}),
+    S3Conf_1 = S3Conf#aws_config{s3_scheme = "http://"},
+    ok = leofs_test_scenario:run(?SCENARIO_1, S3Conf_1),
+    ok = leofs_test_scenario:run(?SCENARIO_2, S3Conf_1),
+    %% ok = leofs_test_scenario:run(?SCENARIO_3, S3Conf_1),
+    %% ok = leofs_test_scenario:run(?SCENARIO_4, S3Conf_1),
     ok.
 
 
@@ -82,11 +102,13 @@ main(Args) ->
 option_spec_list() ->
     [
      %% {Name, ShortOpt, LongOpt, ArgSpec, HelpMsg}
+     {bucket,   $b, "bucket",   string,    "Target a bucket"},
+     {cookie,   $c, "cookie",   string,    "Distributed-cookie for communication with LeoFS"},
+     {leofs_dir,$d, "dir",      string,    "LeoFS directory"},
+     {keys,     $k, "keys",     integer,   "Total number of keys"},
+     {manager,  $m, "manager",  string,    "LeoFS Manager"},
+     %% misc
      {help,     $h, "help",     undefined, "Show the program options"},
-     {manager,  $m, "manager",  string,    "Specify a manager node to connect"},
-     {cookie,   $c, "cookie",   string,    "Specify a cookie to connect"},
-     {bucket,   $b, "bucket",   string,    "Specify a bucket to check data"},
-     {keys,     $k, "keys",     integer,   "Specify a total number of keys"},
      {version,  $v, "version",  undefined, "Show version information"}
     ].
 
