@@ -84,16 +84,18 @@ main(Args) ->
         [] ->
             void;
         LeoFSDir ->
-            io:format("~s~n", [LeoFSDir]),
             ok = leofs_test_launcher:run(LeoFSDir)
     end,
 
     %% Execute scenarios:
+    io:format("~n~s~n", [":::START:::"]),
     S3Conf_1 = S3Conf#aws_config{s3_scheme = "http://"},
     ok = leofs_test_scenario:run(?SCENARIO_1, S3Conf_1),
     ok = leofs_test_scenario:run(?SCENARIO_2, S3Conf_1),
-    %% ok = leofs_test_scenario:run(?SCENARIO_3, S3Conf_1),
-    %% ok = leofs_test_scenario:run(?SCENARIO_4, S3Conf_1),
+    ok = leofs_test_scenario:run(?SCENARIO_3, S3Conf_1),
+    ok = leofs_test_scenario:run(?SCENARIO_4, S3Conf_1),
+    %% ok = leofs_test_scenario:run(?SCENARIO_5, S3Conf_1),
+    io:format("~n~s~n", [":::FINISHED:::"]),
     ok.
 
 

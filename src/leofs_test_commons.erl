@@ -30,17 +30,18 @@
 -define(DETACH_NODE,  'storage_3@127.0.0.1').
 -define(SUSPEND_NODE, 'storage_1@127.0.0.1').
 -define(RESUME_NODE,  'storage_1@127.0.0.1').
+-define(RECOVER_NODE, 'storage_2@127.0.0.1').
 
 
 %% @doc Execute tests
-run(create_bucket, S3Conf) ->
+run(?F_CREATE_BUCKET, S3Conf) ->
     catch erlcloud_s3:create_bucket(?env_bucket(), S3Conf),
     ok;
-run(put_objects, S3Conf) ->
+run(?F_PUT_OBJ, S3Conf) ->
     Keys = ?env_keys(),
     ok = put_object(S3Conf, Keys),
     ok;
-run(del_objects, S3Conf) ->
+run(?F_DEL_OBJ, S3Conf) ->
     Keys = ?env_keys(),
     Keys_1 = case (Keys > 10000) of
                  true ->
@@ -50,33 +51,44 @@ run(del_objects, S3Conf) ->
              end,
     ok = del_object(S3Conf, Keys_1, sets:new()),
     ok;
-run(check_redundancies, S3Conf) ->
+run(?F_CHECK_REPLICAS, S3Conf) ->
     Keys = ?env_keys(),
     ok = check_redundancies(S3Conf, Keys, []),
     ok;
 
 %% Operate a node
-run(attach_node,_S3Conf) ->
+run(?F_ATTACH_NODE,_S3Conf) ->
     ok = attach_node(?ATTACH_NODE),
     ok;
-run(detach_node,_S3Conf) ->
+run(?F_DETACH_NODE,_S3Conf) ->
     ok = detach_node(?DETACH_NODE),
     ok;
-run(suspend_node,_S3Conf) ->
+run(?F_SUSPEND_NODE,_S3Conf) ->
     ok = suspend_node(?SUSPEND_NODE),
     ok;
-run(resume_node,_S3Conf) ->
+run(?F_RESUME_NODE,_S3Conf) ->
     ok = resume_node(?RESUME_NODE),
     ok;
-run(stop_and_restart,_S3Conf) ->
-    ok = stop_and_restart(?SUSPEND_NODE),
+run(?F_START_NODE,_S3Conf) ->
+    ok = start_node(?SUSPEND_NODE),
     ok;
-run(watch_mq,_S3Conf) ->
+run(?F_STOP_NODE,_S3Conf) ->
+    ok = stop_node(?SUSPEND_NODE),
+    ok;
+run(?F_WATCH_MQ,_S3Conf) ->
     ok = watch_mq(),
     ok;
-run(_,_) ->
+run(?F_COMPACTION,_S3Conf) ->
+    ok = compaction(),
+    ok;
+run(?F_REMOVE_AVS,_S3Conf) ->
+    ok = remove_avs(?RECOVER_NODE),
+    ok;
+run(?F_RECOVER_NODE,_S3Conf) ->
+    ok = recover_node(?RECOVER_NODE),
+    ok;
+run(_F,_) ->
     ok.
-
 
 
 %% @doc
@@ -174,7 +186,7 @@ check_redundancies(Conf, Index, Errors) ->
 
 %% @private
 check_redundancies_1(Key, Errors) ->
-    case rpc:call(?env_manager(), 'leo_manager_api', 'whereis', [[Key], true]) of
+    case rpc:call(?env_manager(), leo_manager_api, whereis, [[Key], true]) of
         {ok, RetL} when length(RetL) == ?NUM_OF_REPLICAS ->
             L1 = lists:nth(1, RetL),
             L2 = lists:nth(2, RetL),
@@ -217,13 +229,12 @@ compare_2(Index, Key, L1, L2) ->
 %% ---------------------------------------------------------
 %% Inner Function - Operat a node
 %% ---------------------------------------------------------
+%% @doc Attach the node
 attach_node(Node) ->
     case rpc:call(?env_manager(), leo_manager_mnesia,
                   get_storage_node_by_name, [Node]) of
         not_found ->
-            Path = filename:join([?env_leofs_dir(), ?node_to_path(Node)]),
-            os:cmd(Path ++ " start"),
-
+            ok = start_node(Node),
             attach_node_1(Node, 0);
         _ ->
             io:format("ERROR: ~s ~w~n", ["Could not attach the node:", Node]),
@@ -237,29 +248,37 @@ attach_node_1(Node, Times) ->
     case rpc:call(?env_manager(), leo_manager_mnesia,
                   get_storage_node_by_name, [Node]) of
         {ok, #node_state{state = ?STATE_ATTACHED}} ->
-            ok;
+            rebalance();
         _ ->
-            timer:sleep(timer:seconds(1)),
+            timer:sleep(timer:seconds(5)),
             attach_node_1(Node, Times + 1)
     end.
 
 
+%% @doc Detach the node
 detach_node(Node) ->
-    Manager = ?env_manager(),
-    case rpc:call(Manager, leo_manager_api, detach, [Node]) of
+    case rpc:call(?env_manager(), leo_manager_api, detach, [Node]) of
         ok ->
-            case rpc:call(Manager, leo_manager_api, rebalance, [null]) of
-                ok ->
-                    ok;
-                _Error ->
-                    io:format("ERROR: ~s~n", ["Fail rebalance (detach-node)"]),
-                    halt()
-            end;
+            ok = stop_node(Node),
+            rebalance();
         _Error ->
             io:format("ERROR: ~s ~w~n", ["Could not detach the node:", Node]),
             halt()
     end.
 
+
+%% @doc Execute rebalance of data
+rebalance() ->
+    case rpc:call(?env_manager(), leo_manager_api, rebalance, [null]) of
+        ok ->
+            ok;
+        _Error ->
+            io:format("ERROR: ~s~n", ["Fail rebalance (detach-node)"]),
+            halt()
+    end.
+
+
+%% @doc Suspend the node
 suspend_node(Node) ->
     case rpc:call(?env_manager(), leo_manager_api, suspend, [Node]) of
         ok ->
@@ -269,33 +288,68 @@ suspend_node(Node) ->
             halt()
     end.
 
+
+%% @doc Resume the node
 resume_node(Node) ->
-    case rpc:call(?env_manager(), leo_manager_api, resume, [Node]) of
-        ok ->
+    Manager = ?env_manager(),
+    case leo_misc:node_existence(Node) of
+        true ->
+            case rpc:call(Manager, leo_manager_api, resume, [Node]) of
+                ok ->
+                    resume_node_1(Node);
+                _Error ->
+                    io:format("ERROR: ~s ~w~n", ["Could not resume the node:", Node]),
+                    halt()
+            end;
+        false ->
+            timer:sleep(timer:seconds(5)),
+            resume_node(Node)
+    end.
+
+resume_node_1(Node) ->
+    case rpc:call(?env_manager(), leo_manager_mnesia, get_storage_node_by_name, [Node]) of
+        {ok, #node_state{state = ?STATE_RUNNING}} ->
             ok;
-        _Error ->
+        {ok, #node_state{}} ->
+            timer:sleep(timer:seconds(3)),
+            resume_node_1(Node);
+        _ ->
             io:format("ERROR: ~s ~w~n", ["Could not resume the node:", Node]),
             halt()
     end.
 
-stop_and_restart(Node) ->
+
+%% @doc Stop the node
+start_node(Node) ->
     Path = filename:join([?env_leofs_dir(), ?node_to_path(Node)]),
-    os:cmd(Path ++ " stop"),
-    timer:sleep(timer:seconds(3)),
     os:cmd(Path ++ " start"),
     ok.
 
-watch_mq() ->
+
+%% @doc Stop the node
+stop_node(Node) ->
+    Path = filename:join([?env_leofs_dir(), ?node_to_path(Node)]),
+    os:cmd(Path ++ " stop"),
+    ok.
+
+
+%% @doc Retrieve storage nodes
+get_storage_nodes() ->
     case rpc:call(?env_manager(),
                   leo_manager_mnesia, get_storage_nodes_all, []) of
         {ok, RetL} ->
-            Nodes = [N || #node_state{node = N,
-                                      state = ?STATE_RUNNING} <- RetL],
-            watch_mq_1(Nodes);
+            [N || #node_state{node = N,
+                              state = ?STATE_RUNNING} <- RetL];
         _ ->
             io:format("ERROR: ~s~n", ["Could not retrieve the running nodes"]),
             halt()
     end.
+
+
+%% @doc Watch mq-stats
+watch_mq() ->
+    Nodes = get_storage_nodes(),
+    watch_mq_1(Nodes).
 
 watch_mq_1([]) ->
     io:format("~s", ["|"]),
@@ -329,6 +383,51 @@ watch_mq_2([#mq_state{state = Stats}|Rest]) ->
         false ->
             still_running
     end.
+
+
+%% @doc Execute data-compcation
+compaction() ->
+    Nodes = get_storage_nodes(),
+    compaction_1(Nodes).
+
+%% @private
+compaction_1([]) ->
+    io:format("~s", ["<<"]),
+    ok;
+compaction_1([Node|Rest]) ->
+    case rpc:call(?env_manager(), leo_manager_api, compact, ["start", Node, 'all', 3]) of
+        ok ->
+            ok = compaction_2(Node),
+            compaction_1(Rest);
+        _Other ->
+            io:format("~nERROR: ~s~n", ["Could not retrieve mq-state of the node"]),
+            halt()
+    end.
+
+%% @private
+compaction_2(Node) ->
+    io:format("~s", ["-"]),
+    case rpc:call(?env_manager(), leo_manager_api, compact, ["status", Node]) of
+        {ok, #compaction_stats{status = ?ST_IDLING}} ->
+            ok;
+        {ok, #compaction_stats{}} ->
+            timer:sleep(timer:seconds(3)),
+            compaction_2(Node);
+        _ ->
+            io:format("ERROR: ~s~n", ["Could not retrieve mq-state of the node"]),
+            halt()
+    end.
+
+
+
+%% @doc Remove avs of the node
+remove_avs(_Node) ->
+    ok.
+
+
+%% @doc Recover data of the node
+recover_node(_Node) ->
+    ok.
 
 
 %% % Retrieve list of objects from the LeoFS

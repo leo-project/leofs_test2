@@ -76,17 +76,35 @@
 
 
 %% TEST Scenatios:
--define(SC_ITEM_PUT_OBJ, {put_objects,   "put objects"}).
--define(SC_ITEM_DEL_OBJ, {del_objects,   "del objects"}).
--define(SC_ITEM_CREATE_BUCKET,  {create_bucket, "create a bucket"}).
--define(SC_ITEM_CHECK_REPLICAS, {check_redundancies, "check redundancies of replicas"}).
+-define(F_PUT_OBJ,        put_objects).
+-define(F_DEL_OBJ,        del_objects).
+-define(F_CREATE_BUCKET,  create_bucket).
+-define(F_CHECK_REPLICAS, check_redundancies).
+-define(F_ATTACH_NODE,    attach_node).
+-define(F_DETACH_NODE,    detach_node).
+-define(F_SUSPEND_NODE,   suspend_node).
+-define(F_RESUME_NODE,    resume_node).
+-define(F_START_NODE,     start_node).
+-define(F_STOP_NODE,      stop_node).
+-define(F_WATCH_MQ,       watch_mq).
+-define(F_COMPACTION,     compaction).
+-define(F_REMOVE_AVS,     remove_avs).
+-define(F_RECOVER_NODE,   recover_node).
 
--define(SC_ITEM_ATTACH_NODE,     {attach_node,  "attach a node"}).
--define(SC_ITEM_DETACH_NODE,     {detach_node,  "detach a node"}).
--define(SC_ITEM_SUSPEND_NODE,     {suspend_node, "suspend a node"}).
--define(SC_ITEM_RESUME_NODE,      {resume_node,  "resume a node"}).
--define(SC_ITEM_STOP_AND_RESTART, {resume_node,  "stop and restart a node"}).
--define(SC_ITEM_WATCH_MQ,         {watch_mq,     "watch state of mq"}).
+-define(SC_ITEM_PUT_OBJ,        {?F_PUT_OBJ,        "put objects"}).
+-define(SC_ITEM_DEL_OBJ,        {?F_DEL_OBJ,        "del objects"}).
+-define(SC_ITEM_CREATE_BUCKET,  {?F_CREATE_BUCKET,  "create a bucket"}).
+-define(SC_ITEM_CHECK_REPLICAS, {?F_CHECK_REPLICAS, "check redundancies of replicas"}).
+-define(SC_ITEM_ATTACH_NODE,    {?F_ATTACH_NODE,    "attach a node"}).
+-define(SC_ITEM_DETACH_NODE,    {?F_DETACH_NODE,    "detach a node"}).
+-define(SC_ITEM_SUSPEND_NODE,   {?F_SUSPEND_NODE,   "suspend a node"}).
+-define(SC_ITEM_RESUME_NODE,    {?F_RESUME_NODE,    "resume a node"}).
+-define(SC_ITEM_START_NODE,     {?F_START_NODE,     "start a node"}).
+-define(SC_ITEM_STOP_NODE,      {?F_STOP_NODE,      "stop a node"}).
+-define(SC_ITEM_WATCH_MQ,       {?F_WATCH_MQ,       "watch state of mq"}).
+-define(SC_ITEM_COMPACTION,     {?F_COMPACTION,     "execute data-compaction"}).
+-define(SC_ITEM_REMOVE_AVS,     {?F_REMOVE_AVS,     "remove avs of a node"}).
+-define(SC_ITEM_RECOVER_NODE,   {?F_RECOVER_NODE,   "recover data of a node"}).
 
 -define(SCENARIO_1, {"SCENARIO_1", [?SC_ITEM_CREATE_BUCKET,
                                     ?SC_ITEM_PUT_OBJ,
@@ -101,19 +119,30 @@
                                    ]}).
 
 -define(SCENARIO_3, {"SCENARIO_3", [?SC_ITEM_PUT_OBJ,
-                                    ?SC_ITEM_ATACH_NODE,
+                                    ?SC_ITEM_ATTACH_NODE,
                                     ?SC_ITEM_WATCH_MQ,
+                                    ?SC_ITEM_CHECK_REPLICAS,
+                                    ?SC_ITEM_COMPACTION,
                                     ?SC_ITEM_CHECK_REPLICAS
                                    ]}).
 
 -define(SCENARIO_4, {"SCENARIO_4", [?SC_ITEM_SUSPEND_NODE,
-                                    ?SC_ITEM_STOP_AND_RESTART,
+                                    ?SC_ITEM_STOP_NODE,
+                                    ?SC_ITEM_START_NODE,
                                     ?SC_ITEM_RESUME_NODE,
                                     ?SC_ITEM_PUT_OBJ,
                                     ?SC_ITEM_CHECK_REPLICAS
                                    ]}).
 
+-define(SCENARIO_5, {"SCENARIO_5", [?SC_ITEM_STOP_NODE,
+                                    ?SC_ITEM_REMOVE_AVS,
+                                    ?SC_ITEM_START_NODE,
+                                    ?SC_ITEM_RECOVER_NODE,
+                                    ?SC_ITEM_CHECK_REPLICAS
+                                   ]}).
 
+
+%% @doc Convert node-name to the path
 -define(node_to_path(Node),
         begin
             Name = lists:nth(1, string:tokens(atom_to_list(Node), "@")),
@@ -125,9 +154,32 @@
             end
         end).
 
-
+%% @doc mq-state record
 -record(mq_state, {
           id :: atom(),
           desc = [] :: string(),
           state     :: [{atom(), any()}]
+         }).
+
+
+%% @doc compaction-related
+-define(ST_IDLING,     'idling').
+-define(ST_RUNNING,    'running').
+-define(ST_SUSPENDING, 'suspending').
+-type(compaction_state() :: ?ST_IDLING     |
+                            ?ST_RUNNING    |
+                            ?ST_SUSPENDING).
+
+-record(compaction_stats, {
+          status = ?ST_IDLING :: compaction_state(),
+          total_num_of_targets    = 0  :: non_neg_integer(),
+          num_of_reserved_targets = 0  :: non_neg_integer(),
+          num_of_pending_targets  = 0  :: non_neg_integer(),
+          num_of_ongoing_targets  = 0  :: non_neg_integer(),
+          reserved_targets = []        :: [atom()],
+          pending_targets  = []        :: [atom()],
+          ongoing_targets  = []        :: [atom()],
+          locked_targets   = []        :: [atom()],
+          latest_exec_datetime = 0     :: non_neg_integer(),
+          acc_reports = []             :: [tuple()]
          }).

@@ -46,10 +46,6 @@ run(Dir) ->
 
     %% Check state of each server
     {ok, Nodes} = check_status(attached, 4),
-    io:format("nodes:~p~n", [Nodes]),
-
-    %%
-
     ok.
 
 
