@@ -19,9 +19,9 @@
 %% under the License.
 %%
 %%======================================================================
--module(leofs_test_s1).
+-module(leofs_test_scenario).
 -include("leofs_test.hrl").
--export([run/1]).
+-export([run/2]).
 
 %% @doc scenario-1:
 %%      - put 10000 object
@@ -29,9 +29,16 @@
 %%      - retrieve 10000 object
 %%      - remove 1000 object
 %%      - check redundancies of each object
+%%
+run({ScenarioName, Items}, S3Conf) ->
+    io:format("~n [~s]", [ScenarioName]),
+    run_1(Items, S3Conf).
+
 %% @private
-run(S3Conf) ->
-    ok = leofs_test_commons:run(put_objects,        S3Conf),
-    ok = leofs_test_commons:run(check_redundancies, S3Conf),
-    ok = leofs_test_commons:run(del_objects,        S3Conf),
-    ok.
+run_1([],_S3Conf) ->
+    ok;
+run_1([{F, Description}|Rest], S3Conf) ->
+    io:format("~n   * ~w (~s)", [F, Description]),
+    timer:sleep(timer:seconds(5)),
+    ok = leofs_test_commons:run(F, S3Conf),
+    run_1(Rest, S3Conf).
