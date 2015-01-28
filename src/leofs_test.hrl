@@ -27,7 +27,6 @@
 -define(S3_HOST, "localhost").
 -define(S3_PORT, 8080).
 
-
 -define(PROP_MANAGER,   'manager').
 -define(PROP_COOKIE,    'cookie').
 -define(PROP_BUCKET,    'bucket').
@@ -41,6 +40,12 @@
 -define(NUM_OF_REPLICAS, 2).
 -define(NUM_OF_KEYS, 10000).
 
+-define(msg_start_scenario(),         io:format("~n~s~n", [":::START:::"])).
+-define(msg_start_test(_Test, _Desc), io:format("~n:::TEST: ~w (~s)::::~n", [_Test, _Desc])).
+-define(msg_finished(),               io:format("~n~s~n", [":::FINISHED:::"])).
+-define(msg_error(Args),              io:format("[ERROR] ~p~n", [Args])).
+-define(msg_progress_ongoing(),       io:format("~s", ["-"])).
+-define(msg_progress_finished(),      io:format("~s~n", ["<<"])).
 
 -define(env_manager(),
         case application:get_env(?APP, ?PROP_MANAGER) of
@@ -105,20 +110,34 @@
 -define(SC_ITEM_COMPACTION,     {?F_COMPACTION,     "execute data-compaction"}).
 -define(SC_ITEM_REMOVE_AVS,     {?F_REMOVE_AVS,     "remove avs of a node"}).
 -define(SC_ITEM_RECOVER_NODE,   {?F_RECOVER_NODE,   "recover data of a node"}).
-
--define(SCENARIO_1, {"SCENARIO_1", [?SC_ITEM_CREATE_BUCKET,
+-define(SC_ITEMS, [?SC_ITEM_PUT_OBJ,
+                   ?SC_ITEM_DEL_OBJ,
+                   ?SC_ITEM_CREATE_BUCKET,
+                   ?SC_ITEM_CHECK_REPLICAS,
+                   ?SC_ITEM_ATTACH_NODE,
+                   ?SC_ITEM_DETACH_NODE,
+                   ?SC_ITEM_SUSPEND_NODE,
+                   ?SC_ITEM_RESUME_NODE,
+                   ?SC_ITEM_START_NODE,
+                   ?SC_ITEM_STOP_NODE,
+                   ?SC_ITEM_WATCH_MQ,
+                   ?SC_ITEM_COMPACTION,
+                   ?SC_ITEM_REMOVE_AVS,
+                   ?SC_ITEM_RECOVER_NODE
+                  ]).
+-define(SCENARIO_1, {"SCENARIO-1", [?SC_ITEM_CREATE_BUCKET,
                                     ?SC_ITEM_PUT_OBJ,
                                     ?SC_ITEM_CHECK_REPLICAS,
                                     ?SC_ITEM_DEL_OBJ
                                    ]}).
 
--define(SCENARIO_2, {"SCENARIO_2", [?SC_ITEM_PUT_OBJ,
+-define(SCENARIO_2, {"SCENARIO-2", [?SC_ITEM_PUT_OBJ,
                                     ?SC_ITEM_DETACH_NODE,
                                     ?SC_ITEM_WATCH_MQ,
                                     ?SC_ITEM_CHECK_REPLICAS
                                    ]}).
 
--define(SCENARIO_3, {"SCENARIO_3", [?SC_ITEM_PUT_OBJ,
+-define(SCENARIO_3, {"SCENARIO-3", [?SC_ITEM_PUT_OBJ,
                                     ?SC_ITEM_ATTACH_NODE,
                                     ?SC_ITEM_WATCH_MQ,
                                     ?SC_ITEM_CHECK_REPLICAS,
@@ -126,7 +145,7 @@
                                     ?SC_ITEM_CHECK_REPLICAS
                                    ]}).
 
--define(SCENARIO_4, {"SCENARIO_4", [?SC_ITEM_SUSPEND_NODE,
+-define(SCENARIO_4, {"SCENARIO-4", [?SC_ITEM_SUSPEND_NODE,
                                     ?SC_ITEM_STOP_NODE,
                                     ?SC_ITEM_START_NODE,
                                     ?SC_ITEM_RESUME_NODE,
@@ -134,13 +153,23 @@
                                     ?SC_ITEM_CHECK_REPLICAS
                                    ]}).
 
--define(SCENARIO_5, {"SCENARIO_5", [?SC_ITEM_STOP_NODE,
+-define(SCENARIO_5, {"SCENARIO-5", [?SC_ITEM_STOP_NODE,
                                     ?SC_ITEM_REMOVE_AVS,
                                     ?SC_ITEM_START_NODE,
                                     ?SC_ITEM_RECOVER_NODE,
                                     ?SC_ITEM_CHECK_REPLICAS
                                    ]}).
 
+
+%% @doc Nodes
+-define(storage_nodes, ['storage_0@127.0.0.1',
+                        'storage_1@127.0.0.1',
+                        'storage_2@127.0.0.1',
+                        'storage_3@127.0.0.1']).
+-define(gateway_nodes, ['gateway_0@127.0.0.1']).
+-define(manager_nodes, ['manager_0@127.0.0.1',
+                        'manager_1@127.0.0.1']).
+-define(nodes, ?storage_nodes ++ ?gateway_nodes ++ ?manager_node).
 
 %% @doc Convert node-name to the path
 -define(node_to_path(Node),

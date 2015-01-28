@@ -98,7 +98,7 @@ indicator(Index) ->
 indicator(Index, Interval) ->
     case (Index rem Interval == 0) of
         true ->
-            io:format("~s", ["-"]);
+            ?msg_progress_ongoing();
         false ->
             void
     end.
@@ -121,7 +121,7 @@ rnd_key(NumOfKeys) ->
 %% @doc
 %% @private
 put_object(_Conf, 0) ->
-    io:format("~s~n", ["<<"]),
+    ?msg_progress_finished(),
     ok;
 put_object(Conf, Index) ->
     indicator(Index),
@@ -133,7 +133,7 @@ put_object(Conf, Index) ->
 
 %% @doc
 del_object(_Conf, 0, Keys) ->
-    io:format("~s~n", ["<<"]),
+    ?msg_progress_finished(),
     Errors = lists:foldl(
                fun(K, Acc) ->
                        check_redundancies_1(?env_bucket() ++ "/" ++ K, Acc)
@@ -168,7 +168,7 @@ del_object_1(Conf, Index, Key, Keys) ->
 
 %% @doc
 check_redundancies(_Conf, 0, Errors) ->
-    io:format("~s~n", ["<<"]),
+    ?msg_progress_finished(),
     case length(Errors) of
         0 ->
             void;
@@ -237,12 +237,12 @@ attach_node(Node) ->
             ok = start_node(Node),
             attach_node_1(Node, 0);
         _ ->
-            io:format("ERROR: ~s ~w~n", ["Could not attach the node:", Node]),
+            ?msg_error(["Could not attach the node:", Node]),
             halt()
     end.
 
 attach_node_1(Node, 3) ->
-    io:format("ERROR: ~s ~w~n", ["Could not attach the node:", Node]),
+    ?msg_error(["Could not attach the node:", Node]),
     halt();
 attach_node_1(Node, Times) ->
     case rpc:call(?env_manager(), leo_manager_mnesia,
@@ -262,7 +262,7 @@ detach_node(Node) ->
             ok = stop_node(Node),
             rebalance();
         _Error ->
-            io:format("ERROR: ~s ~w~n", ["Could not detach the node:", Node]),
+            ?msg_error(["Could not detach the node:", Node]),
             halt()
     end.
 
@@ -273,7 +273,7 @@ rebalance() ->
         ok ->
             ok;
         _Error ->
-            io:format("ERROR: ~s~n", ["Fail rebalance (detach-node)"]),
+            ?msg_error("Fail rebalance (detach-node)"),
             halt()
     end.
 
@@ -284,7 +284,7 @@ suspend_node(Node) ->
         ok ->
             ok;
         _Error ->
-            io:format("ERROR: ~s ~w~n", ["Could not suspend the node:", Node]),
+            ?msg_error(["Could not suspend the node:", Node]),
             halt()
     end.
 
@@ -298,7 +298,7 @@ resume_node(Node) ->
                 ok ->
                     resume_node_1(Node);
                 _Error ->
-                    io:format("ERROR: ~s ~w~n", ["Could not resume the node:", Node]),
+                    ?msg_error(["Could not resume the node:", Node]),
                     halt()
             end;
         false ->
@@ -314,7 +314,7 @@ resume_node_1(Node) ->
             timer:sleep(timer:seconds(3)),
             resume_node_1(Node);
         _ ->
-            io:format("ERROR: ~s ~w~n", ["Could not resume the node:", Node]),
+            ?msg_error(["Could not resume the node:", Node]),
             halt()
     end.
 
@@ -341,7 +341,7 @@ get_storage_nodes() ->
             [N || #node_state{node = N,
                               state = ?STATE_RUNNING} <- RetL];
         _ ->
-            io:format("ERROR: ~s~n", ["Could not retrieve the running nodes"]),
+            ?msg_error("Could not retrieve the running nodes"),
             halt()
     end.
 
@@ -352,12 +352,11 @@ watch_mq() ->
     watch_mq_1(Nodes).
 
 watch_mq_1([]) ->
-    io:format("~s", ["|"]),
     timer:sleep(timer:seconds(5)),
-    io:format("~s", ["<<"]),
+    ?msg_progress_finished(),
     ok;
 watch_mq_1([Node|Rest] = Nodes) ->
-    io:format("~s", ["-"]),
+    ?msg_progress_ongoing(),
     case rpc:call(?env_manager(),
                   leo_manager_api, mq_stats, [Node]) of
         {ok, RetL} ->
@@ -369,7 +368,7 @@ watch_mq_1([Node|Rest] = Nodes) ->
                     watch_mq_1(Nodes)
             end;
         _ ->
-            io:format("ERROR: ~s~n", ["Could not retrieve mq-state of the node"]),
+            ?msg_error("Could not retrieve mq-state of the node"),
             halt()
     end.
 
@@ -392,7 +391,7 @@ compaction() ->
 
 %% @private
 compaction_1([]) ->
-    io:format("~s", ["<<"]),
+    ?msg_progress_finished(),
     ok;
 compaction_1([Node|Rest]) ->
     case rpc:call(?env_manager(), leo_manager_api, compact, ["start", Node, 'all', 3]) of
@@ -400,13 +399,13 @@ compaction_1([Node|Rest]) ->
             ok = compaction_2(Node),
             compaction_1(Rest);
         _Other ->
-            io:format("~nERROR: ~s~n", ["Could not retrieve mq-state of the node"]),
+            ?msg_error("Could not execute data-compaction"),
             halt()
     end.
 
 %% @private
 compaction_2(Node) ->
-    io:format("~s", ["-"]),
+    ?msg_progress_ongoing(),
     case rpc:call(?env_manager(), leo_manager_api, compact, ["status", Node]) of
         {ok, #compaction_stats{status = ?ST_IDLING}} ->
             ok;
@@ -414,10 +413,9 @@ compaction_2(Node) ->
             timer:sleep(timer:seconds(3)),
             compaction_2(Node);
         _ ->
-            io:format("ERROR: ~s~n", ["Could not retrieve mq-state of the node"]),
+            ?msg_error("data-compaction failure"),
             halt()
     end.
-
 
 
 %% @doc Remove avs of the node

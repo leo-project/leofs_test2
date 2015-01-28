@@ -31,22 +31,28 @@
 -spec(run(Dir) ->
              ok when Dir::string()).
 run(Dir) ->
-    %% Check the directory
-    PackageDirs = [filename:join([Dir, "leo_manager_0"]),
-                   filename:join([Dir, "leo_manager_1"]),
-                   filename:join([Dir, "leo_storage_0"]),
-                   filename:join([Dir, "leo_storage_1"]),
-                   filename:join([Dir, "leo_storage_2"]),
-                   filename:join([Dir, "leo_storage_3"]),
-                   filename:join([Dir, "leo_gateway_0"])],
-    ok = check_packages(PackageDirs),
+    io:format("~p~n", [Dir]),
+    case check_status(running) of
+        not_prepared ->
+            %% Check the directory
+            PackageDirs = [filename:join([Dir, "leo_manager_0"]),
+                           filename:join([Dir, "leo_manager_1"]),
+                           filename:join([Dir, "leo_storage_0"]),
+                           filename:join([Dir, "leo_storage_1"]),
+                           filename:join([Dir, "leo_storage_2"]),
+                           filename:join([Dir, "leo_storage_3"]),
+                           filename:join([Dir, "leo_gateway_0"])],
+            ok = check_packages(PackageDirs),
 
-    %% Launch each server
-    ok = launch(PackageDirs),
+            %% Launch each server
+            ok = launch(PackageDirs),
 
-    %% Check state of each server
-    {ok, Nodes} = check_status(attached, 4),
-    ok.
+            %% Check state of each server
+            {ok,_Nodes} = check_status(attached),
+            ok;
+        _ ->
+            ok
+    end.
 
 
 %% @doc Check directory of the packages
@@ -58,7 +64,7 @@ check_packages([Dir|Rest]) ->
         true ->
             check_packages(Rest);
         false ->
-            io:format("ERROR: ~s~n", ["Not exist package of LeoFS applications"]),
+            ?msg_error("Not exist package of LeoFS applications"),
             halt()
     end.
 
@@ -102,8 +108,26 @@ get_type_from_dir(Dir) ->
 
 
 %% @private
-check_status(attached, NumOfStorages) ->
+check_status(running) ->
     Manager = ?env_manager(),
+    case rpc:call(Manager,
+                  leo_manager_mnesia, get_storage_nodes_all, []) of
+        {ok, RetL} when length(RetL) == length(?storage_nodes) ->
+            Nodes = [N || #node_state{node = N,
+                                      state = ?STATE_RUNNING} <- RetL],
+            case length(Nodes) == length(?storage_nodes) of
+                true ->
+                    check_status(gateway, length(?gateway_nodes), []);
+                false ->
+                    not_prepared
+            end;
+        _Other ->
+            not_prepared
+    end;
+check_status(attached) ->
+    Manager = ?env_manager(),
+    NumOfStorages = length(?storage_nodes),
+
     Ret = case rpc:call(Manager,
                         leo_manager_mnesia, get_storage_nodes_all, []) of
               {ok, RetL} when length(RetL) == NumOfStorages ->
@@ -122,13 +146,13 @@ check_status(attached, NumOfStorages) ->
     case Ret of
         not_prepared ->
             timer:sleep(timer:seconds(1)),
-            check_status(attached, NumOfStorages);
+            check_status(attached);
         {ok, StorageNodes} ->
             case rpc:call(Manager, leo_manager_api, start, [null]) of
                 ok ->
                     check_status(gateway, 1, StorageNodes);
                 _ ->
-                    io:format("ERROR: ~s~n", ["Could not launch LeoFS"]),
+                    ?msg_error("Could not launch LeoFS"),
                     halt()
             end
     end.

@@ -31,9 +31,13 @@
 %%
 -spec(main(Args) ->
              ok when Args::[string()]).
-main(["help"]) ->
+main(["--h"]) ->
     help();
-main(["version"]) ->
+main(["--help"]) ->
+    help();
+main(["--v"]) ->
+    version();
+main(["--version"]) ->
     version();
 main(Args) ->
     %% Prepare
@@ -87,15 +91,26 @@ main(Args) ->
             ok = leofs_test_launcher:run(LeoFSDir)
     end,
 
-    %% Execute scenarios:
-    io:format("~n~s~n", [":::START:::"]),
-    S3Conf_1 = S3Conf#aws_config{s3_scheme = "http://"},
-    ok = leofs_test_scenario:run(?SCENARIO_1, S3Conf_1),
-    ok = leofs_test_scenario:run(?SCENARIO_2, S3Conf_1),
-    ok = leofs_test_scenario:run(?SCENARIO_3, S3Conf_1),
-    ok = leofs_test_scenario:run(?SCENARIO_4, S3Conf_1),
-    %% ok = leofs_test_scenario:run(?SCENARIO_5, S3Conf_1),
-    io:format("~n~s~n", [":::FINISHED:::"]),
+    case leo_misc:get_value('test', Opts, not_found) of
+        not_found ->
+            %% Execute scenarios:
+            ?msg_start_scenario(),
+            S3Conf_1 = S3Conf#aws_config{s3_scheme = "http://"},
+            ok = leofs_test_scenario:run(?SCENARIO_1, S3Conf_1),
+            ok = leofs_test_scenario:run(?SCENARIO_2, S3Conf_1),
+            ok = leofs_test_scenario:run(?SCENARIO_3, S3Conf_1),
+            ok = leofs_test_scenario:run(?SCENARIO_4, S3Conf_1),
+            %% ok = leofs_test_scenario:run(?SCENARIO_5, S3Conf_1),
+            ?msg_finished();
+        Test ->
+            case leo_misc:get_value(Test, ?SC_ITEMS, not_found) of
+                not_found ->
+                    ?msg_error("Not found the test");
+                Test_1 ->
+                    ?msg_start_test(Test, Test_1),
+                    ?msg_finished()
+            end
+    end,
     ok.
 
 
@@ -109,6 +124,7 @@ option_spec_list() ->
      {leofs_dir,$d, "dir",      string,    "LeoFS directory"},
      {keys,     $k, "keys",     integer,   "Total number of keys"},
      {manager,  $m, "manager",  string,    "LeoFS Manager"},
+     {test,     $t, "test",     atom,      "Execute a test"},
      %% misc
      {help,     $h, "help",     undefined, "Show the program options"},
      {version,  $v, "version",  undefined, "Show version information"}
