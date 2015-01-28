@@ -292,7 +292,7 @@ suspend_node(Node) ->
 %% @doc Resume the node
 resume_node(Node) ->
     Manager = ?env_manager(),
-    case leo_misc:node_existence(Node) of
+    case catch leo_misc:node_existence(Node) of
         true ->
             case rpc:call(Manager, leo_manager_api, resume, [Node]) of
                 ok ->
@@ -301,7 +301,7 @@ resume_node(Node) ->
                     ?msg_error(["Could not resume the node:", Node]),
                     halt()
             end;
-        false ->
+        _ ->
             timer:sleep(timer:seconds(5)),
             resume_node(Node)
     end.
