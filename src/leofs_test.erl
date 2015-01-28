@@ -31,11 +31,11 @@
 %%
 -spec(main(Args) ->
              ok when Args::[string()]).
-main(["--h"]) ->
+main(["-h"]) ->
     help();
 main(["--help"]) ->
     help();
-main(["--v"]) ->
+main(["-v"]) ->
     version();
 main(["--version"]) ->
     version();
