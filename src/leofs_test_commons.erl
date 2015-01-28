@@ -241,7 +241,7 @@ attach_node(Node) ->
             halt()
     end.
 
-attach_node_1(Node, 3) ->
+attach_node_1(Node, ?THRESHOLD_ERROR_TIMES) ->
     ?msg_error(["Could not attach the node:", Node]),
     halt();
 attach_node_1(Node, Times) ->
@@ -307,15 +307,28 @@ resume_node(Node) ->
     end.
 
 resume_node_1(Node) ->
-    case rpc:call(?env_manager(), leo_manager_mnesia, get_storage_node_by_name, [Node]) of
-        {ok, #node_state{state = ?STATE_RUNNING}} ->
+    case check_state_of_node(Node, ?STATE_RUNNING) of
+        ok ->
             ok;
-        {ok, #node_state{}} ->
+        {error, not_yet} ->
             timer:sleep(timer:seconds(3)),
             resume_node_1(Node);
         _ ->
             ?msg_error(["Could not resume the node:", Node]),
             halt()
+    end.
+
+
+%% @doc check state of the node
+check_state_of_node(Node, State) ->
+    case rpc:call(?env_manager(), leo_manager_mnesia,
+                  get_storage_node_by_name, [Node]) of
+        {ok, #node_state{state = State}} ->
+            ok;
+        {ok, _NodeState} ->
+            {error, not_yet};
+        Other ->
+            Other
     end.
 
 
@@ -419,24 +432,63 @@ compaction_2(Node) ->
 
 
 %% @doc Remove avs of the node
-remove_avs(_Node) ->
-    ok.
+remove_avs(Node) ->
+    %% Stop the node
+    ok = stop_node(Node),
+
+    %% Remove avs of the node
+    timer:sleep(timer:seconds(3)),
+    Path = filename:join([?env_leofs_dir(), ?node_to_avs_dir(Node)]),
+    case filelib:is_dir(Path) of
+        true ->
+            case (string:str(Path, "avs") > 0) of
+                true ->
+                    [] = os:cmd("rm -rf " ++ Path),
+                    timer:sleep(timer:seconds(3)),
+
+                    %% Start the node
+                    start_node(Node);
+                false ->
+                    ok
+            end;
+        false ->
+            ok
+    end.
 
 
 %% @doc Recover data of the node
-recover_node(_Node) ->
-    ok.
+recover_node(Node) ->
+    Ret = case recover_node_1(Node, 0) of
+              ok ->
+                  case rpc:call(?env_manager(), leo_manager_api,
+                                recover, ["node", Node, true]) of
+                      ok ->
+                          ok;
+                      Error ->
+                          Error
+                  end;
+              Error ->
+                  Error
+          end,
 
+    case Ret of
+        ok ->
+            ok;
+        _ ->
+            ?msg_error(["recover-node failure", Node]),
+            halt()
+    end.
 
-%% % Retrieve list of objects from the LeoFS
-%% Objs = erlcloud_s3:list_objects("erlang", Conf_1),
-%% io:format("[debug]objects:~p~n", [Objs]),
-%% % GET an object from the LeoFS
-%% Obj = erlcloud_s3:get_object("erlang", "test-key", Conf_1),
-%% io:format("[debug]inserted object:~p~n", [Obj]),
-%% % GET an object metadata from the LeoFS
-%% Meta = erlcloud_s3:get_object_metadata("erlang", "test-key", Conf_1),
-%% io:format("[debug]metadata:~p~n", [Meta]),
-%% % DELETE an object from the LeoFS
-%% DeletedObj = erlcloud_s3:delete_object("erlang", "test-key", Conf_1),
-%% io:format("[debug]deleted object:~p~n", [DeletedObj]),
+%% @private
+recover_node_1(_Node, ?THRESHOLD_ERROR_TIMES) ->
+    {error, over_threshold_error_times};
+recover_node_1(Node, Times) ->
+    case check_state_of_node(Node, ?STATE_RUNNING) of
+        ok ->
+            ok;
+        {error, not_yet} ->
+            timer:sleep(timer:seconds(10)),
+            recover_node_1(Node, Times + 1);
+        Other ->
+            Other
+    end.

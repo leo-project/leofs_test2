@@ -39,13 +39,14 @@
 -define(COOKIE, "401321b4").
 -define(NUM_OF_REPLICAS, 2).
 -define(NUM_OF_KEYS, 10000).
+-define(THRESHOLD_ERROR_TIMES, 3).
 
--define(msg_start_scenario(),         io:format("~n~s~n", [":::START:::"])).
--define(msg_start_test(_Test, _Desc), io:format("~n:::TEST: ~w (~s)::::~n", [_Test, _Desc])).
--define(msg_finished(),               io:format("~n~s~n", [":::FINISHED:::"])).
+-define(msg_start_scenario(),         io:format("~n~s~n", ["::: START :::"])).
+-define(msg_start_test(_Test, _Desc), io:format("~n::: TEST: ~w (~s)::::~n", [_Test, _Desc])).
+-define(msg_finished(_Sec),           io:format("~n::: Finished (~wsec) :::~n", [_Sec])).
 -define(msg_error(Args),              io:format("[ERROR] ~p~n", [Args])).
 -define(msg_progress_ongoing(),       io:format("~s", ["-"])).
--define(msg_progress_finished(),      io:format("~s~n", ["<<"])).
+-define(msg_progress_finished(),      io:format("~s", ["|"])).
 
 -define(env_manager(),
         case application:get_env(?APP, ?PROP_MANAGER) of
@@ -128,7 +129,8 @@
 -define(SCENARIO_1, {"SCENARIO-1", [?SC_ITEM_CREATE_BUCKET,
                                     ?SC_ITEM_PUT_OBJ,
                                     ?SC_ITEM_CHECK_REPLICAS,
-                                    ?SC_ITEM_DEL_OBJ
+                                    ?SC_ITEM_DEL_OBJ,
+                                    ?SC_ITEM_CHECK_REPLICAS
                                    ]}).
 
 -define(SCENARIO_2, {"SCENARIO-2", [?SC_ITEM_PUT_OBJ,
@@ -137,8 +139,7 @@
                                     ?SC_ITEM_CHECK_REPLICAS
                                    ]}).
 
--define(SCENARIO_3, {"SCENARIO-3", [?SC_ITEM_PUT_OBJ,
-                                    ?SC_ITEM_ATTACH_NODE,
+-define(SCENARIO_3, {"SCENARIO-3", [?SC_ITEM_ATTACH_NODE,
                                     ?SC_ITEM_WATCH_MQ,
                                     ?SC_ITEM_CHECK_REPLICAS,
                                     ?SC_ITEM_COMPACTION,
@@ -153,13 +154,11 @@
                                     ?SC_ITEM_CHECK_REPLICAS
                                    ]}).
 
--define(SCENARIO_5, {"SCENARIO-5", [?SC_ITEM_STOP_NODE,
-                                    ?SC_ITEM_REMOVE_AVS,
-                                    ?SC_ITEM_START_NODE,
+-define(SCENARIO_5, {"SCENARIO-5", [?SC_ITEM_REMOVE_AVS,
                                     ?SC_ITEM_RECOVER_NODE,
+                                    ?SC_ITEM_WATCH_MQ,
                                     ?SC_ITEM_CHECK_REPLICAS
                                    ]}).
-
 
 %% @doc Nodes
 -define(storage_nodes, ['storage_0@127.0.0.1',
@@ -181,6 +180,12 @@
                 "storage" -> lists:append(["leo_", Name, "/bin/leo_storage"]);
                 "gateway" -> lists:append(["leo_", Name, "/bin/leo_gateway"])
             end
+        end).
+
+-define(node_to_avs_dir(Node),
+        begin
+            Name = lists:nth(1, string:tokens(atom_to_list(Node), "@")),
+            filename:join(["leo_"++Name, "avs"])
         end).
 
 %% @doc mq-state record
