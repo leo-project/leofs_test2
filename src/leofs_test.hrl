@@ -98,7 +98,7 @@
 -define(F_RECOVER_NODE,   recover_node).
 
 -define(SC_ITEM_PUT_OBJ,        {?F_PUT_OBJ,        "put objects"}).
--define(SC_ITEM_DEL_OBJ,        {?F_DEL_OBJ,        "del objects"}).
+-define(SC_ITEM_DEL_OBJ,        {?F_DEL_OBJ,        "remove objects"}).
 -define(SC_ITEM_CREATE_BUCKET,  {?F_CREATE_BUCKET,  "create a bucket"}).
 -define(SC_ITEM_CHECK_REPLICAS, {?F_CHECK_REPLICAS, "check redundancies of replicas"}).
 -define(SC_ITEM_ATTACH_NODE,    {?F_ATTACH_NODE,    "attach a node"}).
