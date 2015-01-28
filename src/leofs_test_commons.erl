@@ -104,13 +104,13 @@ indicator(Index, Interval) ->
     end.
 
 
-%% @doc
+%% @doc Generate a key
 %% @private
 gen_key(Index) ->
     lists:append(["test/", integer_to_list(Index)]).
 
 
-%% @doc
+%% @doc Generate a key at random
 %% @private
 rnd_key(NumOfKeys) ->
     gen_key(
@@ -118,20 +118,72 @@ rnd_key(NumOfKeys) ->
         erlang:crc32(crypto:rand_bytes(16)), NumOfKeys)).
 
 
-%% @doc
+%% @doc Make partion of processing units
+%% private
+partitions(Index, MaxKeys, Acc) ->
+    Start = (Index - 1) * ?UNIT_OF_PARTION + 1,
+    case Start > MaxKeys of
+        true ->
+            Acc;
+        false ->
+            End = (Index - 1) * ?UNIT_OF_PARTION + ?UNIT_OF_PARTION,
+            case (End > MaxKeys) of
+                true  ->
+                    [{Start, MaxKeys}|Acc];
+                false ->
+                    partitions(Index + 1, MaxKeys, [{Start, End}|Acc])
+            end
+    end.
+
+
+%% @doc Receive messages from clients
 %% @private
-put_object(_Conf, 0) ->
+loop(_,0) ->
     ?msg_progress_finished(),
     ok;
-put_object(Conf, Index) ->
-    indicator(Index),
-    Key = gen_key(Index),
+loop(Ref, NumOfPartitions) ->
+    receive
+        {Ref, ok} ->
+            loop(Ref, NumOfPartitions - 1)
+    end.
+
+
+%% @doc Put objects
+%% @private
+put_object(Conf, Keys) when Keys > ?UNIT_OF_PARTION ->
+    Partitions = partitions(1, Keys, []),
+
+    From = self(),
+    Ref  = make_ref(),
+    lists:foreach(
+      fun({Start, End}) ->
+              spawn(fun() ->
+                            put_object_1(Conf, From, Ref, Start, End)
+                    end)
+      end, Partitions),
+    loop(Ref, length(Partitions));
+put_object(Conf, Keys) ->
+    put_object_1(Conf, undefined, undefined, 1, Keys).
+
+%% @private
+put_object_1(_, From, Ref, Start, End) when Start > End ->
+    case (From == undefined andalso
+          Ref  == undefined) of
+        true ->
+            ?msg_progress_finished(),
+            ok;
+        false ->
+            erlang:send(From, {Ref, ok})
+    end;
+put_object_1(Conf, From, Ref, Start, End) ->
+    indicator(Start),
+    Key = gen_key(Start),
     Val = crypto:rand_bytes(16),
     erlcloud_s3:put_object(?env_bucket(), Key, Val, [], Conf),
-    put_object(Conf, Index - 1).
+    put_object_1(Conf, From, Ref, Start + 1, End).
 
 
-%% @doc
+%% @doc Remove objects
 del_object(_Conf, 0, Keys) ->
     ?msg_progress_finished(),
     Errors = lists:foldl(
@@ -166,7 +218,7 @@ del_object_1(Conf, Index, Key, Keys) ->
     end.
 
 
-%% @doc
+%% @doc Check replicated objects
 check_redundancies(_Conf, 0, Errors) ->
     ?msg_progress_finished(),
     case length(Errors) of
@@ -217,9 +269,16 @@ compare_1(Key, L1, L2) ->
 compare_2(9,_Key,_L1,_L2) ->
     ok;
 compare_2(Index, Key, L1, L2) ->
-    case (element(Index, L1) == element(Index, L2)) of
+    case (erlang:size(L1) >= Index andalso
+          erlang:size(L2) >= Index) of
         true ->
-            compare_2(Index + 1, Key, L1, L2);
+            case (element(Index, L1) == element(Index, L2)) of
+                true ->
+                    compare_2(Index + 1, Key, L1, L2);
+                false ->
+                    io:format("Error: ~p, ~p, ~p~n", [Key, L1, L2]),
+                    erlang:error("compare_2/3 - found an inconsistent object")
+            end;
         false ->
             io:format("Error: ~p, ~p, ~p~n", [Key, L1, L2]),
             erlang:error("compare_2/3 - found an inconsistent object")

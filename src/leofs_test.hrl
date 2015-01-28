@@ -38,7 +38,8 @@
 -define(MANAGER_NODE, "manager_0@127.0.0.1").
 -define(COOKIE, "401321b4").
 -define(NUM_OF_REPLICAS, 2).
--define(NUM_OF_KEYS, 10000).
+-define(NUM_OF_KEYS,    10000).
+-define(UNIT_OF_PARTION, 1000).
 -define(THRESHOLD_ERROR_TIMES, 3).
 
 -define(msg_start_scenario(),         io:format("~n~s~n", ["::: START :::"])).
