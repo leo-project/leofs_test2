@@ -87,6 +87,7 @@ launch([Dir|Rest]) ->
     launch(Rest).
 
 
+%% @doc Retrieve type of a node from the directory
 %% @private
 get_type_from_dir(Dir) ->
     case string:str(Dir, "leo_manager") > 0 of
@@ -107,6 +108,7 @@ get_type_from_dir(Dir) ->
     end.
 
 
+%% @doc Check state of the cluster
 %% @private
 check_status(running) ->
     Manager = ?env_manager(),
@@ -157,6 +159,8 @@ check_status(attached) ->
             end
     end.
 
+%% @doc Check state of the gateway
+%% @private
 check_status(gateway, NumOfGateways, StorageNodes) ->
     Manager = ?env_manager(),
     Ret = case rpc:call(Manager,
