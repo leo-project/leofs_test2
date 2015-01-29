@@ -165,6 +165,9 @@ loop(Ref, NumOfPartitions) ->
             loop(Ref, NumOfPartitions - 1);
         _ ->
             loop(Ref, NumOfPartitions)
+    after
+        ?DEF_TIMEOUT ->
+            {error, timeout}
     end.
 
 
@@ -189,8 +192,13 @@ put_object_1(Conf, From, Ref, Start, End) ->
     indicator(Start),
     Key = gen_key(Start),
     Val = crypto:rand_bytes(16),
-    erlcloud_s3:put_object(?env_bucket(), Key, Val, [], Conf),
-    put_object_1(Conf, From, Ref, Start + 1, End).
+    case catch erlcloud_s3:put_object(?env_bucket(), Key, Val, [], Conf) of
+        {'EXIT',_Cause} ->
+            timer:sleep(timer:seconds(1)),
+            put_object_1(Conf, From, Ref, Start, End);
+        _ ->
+            put_object_1(Conf, From, Ref, Start + 1, End)
+    end.
 
 
 %% @doc Remove objects

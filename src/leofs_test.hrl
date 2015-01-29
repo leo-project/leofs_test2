@@ -41,6 +41,7 @@
 -define(NUM_OF_KEYS,    10000).
 -define(UNIT_OF_PARTION, 1000).
 -define(THRESHOLD_ERROR_TIMES, 3).
+-define(DEF_TIMEOUT, timer:seconds(30)).
 
 -define(msg_start_scenario(),         io:format("~n~s~n", ["::: START :::"])).
 -define(msg_start_test(_Test, _Desc), io:format("~n::: TEST: ~w (~s)::::~n", [_Test, _Desc])).
