@@ -1,18 +1,15 @@
-LeoFS Integration Test Tool
-===========================
+# LeoFS Integration Test Tool
 
 ![LeoFS Logo](http://leo-project.net/leofs/docs/_static/leofs-logo-small.png)
 
-Overview
---------
+## Overview
 
 * ``leofs_test2`` is a integration test tool for LeoFS clusters. Tests/Scenarios depend on Erlang and can communicate with the cluster using the distributed Erlang.
 
 
-Bootstrapping Your Test Environment
------------------------------------
+## Bootstrapping Your Test Environment
 
-### Build ``leofs_test2``
+### Build "leofs_test2"
 
 * "leofs_test2" requires Erlang R16B03-1 or later.
 * "leofs_test2" uses the rebar build system. Makefile so that simply running "make" at the top level should work.
@@ -23,7 +20,7 @@ $ cd leofs_test2
 $ make
 ```
 
-### Modify ``/etc/hosts`` in order to create bucket(s) with ``erlcloud``
+### Modify "/etc/hosts" in order to create bucket(s) with "erlcloud"
 
 * Add a domain for the LeoFS bucket in ``/etc/hosts``
 
@@ -34,8 +31,15 @@ $ sudo vi /etc/hosts
 127.0.0.1 localhost <BUCKET_NAME>.localhost
 ```
 
-Starting leofs_test2
---------------------
+* Build a LeoFS of your test with "bootstrap.sh" which is included in [LeoFS source code](https://github.com/leo-project/leofs)
+
+```bash
+$ cd <leofs-root-dir>/
+$ sh bootstrap.sh build integration-test
+```
+
+
+## Starting leofs_test2
 
 * leofs_test2 has options as follows. You can set suitable option(s) with tests.
 
@@ -83,7 +87,18 @@ $ ./leofs_test -d <leofs-package-dir> -b <bucket> -k 10000 -c leofs_test
 ::: Finished (1617sec) :::
 ```
 
-Sponsors
---------
+* Example - Execute only a test
+
+```bash
+$ ./leofs_test -d /home/yosuke/dev/leo/test/leofs-1.2.5-dev/package -t check_redundancies
+...
+:: TEST: check_redundancies (check redundancies of replicas)::::
+
+ [TEST]
+   * check_redundancies (check redundancies of replicas)-----------------|
+::: Finished (13sec) :::
+```
+
+## Sponsors
 
 LeoProject/LeoFS is sponsored by [Rakuten, Inc.](http://global.rakuten.com/corp/) and [Rakuten Institute of Technology](http://rit.rakuten.co.jp/).

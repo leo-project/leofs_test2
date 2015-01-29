@@ -53,7 +53,7 @@ run(?F_DEL_OBJ, S3Conf) ->
     ok;
 run(?F_CHECK_REPLICAS, S3Conf) ->
     Keys = ?env_keys(),
-    ok = check_redundancies(S3Conf, Keys, []),
+    ok = check_redundancies(S3Conf, Keys),
     ok;
 
 %% Operate a node
@@ -90,8 +90,10 @@ run(?F_RECOVER_NODE,_S3Conf) ->
 run(_F,_) ->
     ok.
 
-
-%% @doc
+%% ---------------------------------------------------------
+%% Inner Functions
+%% ---------------------------------------------------------
+%% @doc Output progress
 %% @private
 indicator(Index) ->
     indicator(Index, 100).
@@ -104,13 +106,13 @@ indicator(Index, Interval) ->
     end.
 
 
-%% @doc
+%% @doc Generate a key by index
 %% @private
 gen_key(Index) ->
     lists:append(["test/", integer_to_list(Index)]).
 
 
-%% @doc
+%% @doc Generate a key at random
 %% @private
 rnd_key(NumOfKeys) ->
     gen_key(
@@ -118,33 +120,87 @@ rnd_key(NumOfKeys) ->
         erlang:crc32(crypto:rand_bytes(16)), NumOfKeys)).
 
 
-%% @doc
+%% @doc Make partion of processing units
+%% private
+partitions(Index, MaxKeys, Acc) ->
+    Start = (Index - 1) * ?UNIT_OF_PARTION + 1,
+    case Start > MaxKeys of
+        true ->
+            Acc;
+        false ->
+            End = (Index - 1) * ?UNIT_OF_PARTION + ?UNIT_OF_PARTION,
+            case (End > MaxKeys) of
+                true  ->
+                    [{Start, MaxKeys}|Acc];
+                false ->
+                    partitions(Index + 1, MaxKeys, [{Start, End}|Acc])
+            end
+    end.
+
+
+%% @doc Execute function in paralell
 %% @private
-put_object(_Conf, 0) ->
+do_concurrent_exec(Conf, Keys, Fun) ->
+    Partitions = partitions(1, Keys, []),
+    From = self(),
+    Ref  = make_ref(),
+
+    lists:foreach(
+      fun({Start, End}) ->
+              spawn(fun() ->
+                            Fun(Conf, From, Ref, Start, End)
+                    end)
+      end, Partitions),
+    loop(Ref, length(Partitions)).
+
+
+%% @doc Receive messages from clients
+%% @private
+loop(_,0) ->
     ?msg_progress_finished(),
     ok;
-put_object(Conf, Index) ->
-    indicator(Index),
-    Key = gen_key(Index),
+loop(Ref, NumOfPartitions) ->
+    receive
+        {Ref, ok} ->
+            loop(Ref, NumOfPartitions - 1);
+        _ ->
+            loop(Ref, NumOfPartitions)
+    end.
+
+
+%% @doc Put objects
+%% @private
+put_object(Conf, Keys) when Keys > ?UNIT_OF_PARTION ->
+    do_concurrent_exec(Conf, Keys, fun put_object_1/5);
+put_object(Conf, Keys) ->
+    put_object_1(Conf, undefined, undefined, 1, Keys).
+
+%% @private
+put_object_1(_, From, Ref, Start, End) when Start > End ->
+    case (From == undefined andalso
+          Ref  == undefined) of
+        true ->
+            ?msg_progress_finished(),
+            ok;
+        false ->
+            erlang:send(From, {Ref, ok})
+    end;
+put_object_1(Conf, From, Ref, Start, End) ->
+    indicator(Start),
+    Key = gen_key(Start),
     Val = crypto:rand_bytes(16),
     erlcloud_s3:put_object(?env_bucket(), Key, Val, [], Conf),
-    put_object(Conf, Index - 1).
+    put_object_1(Conf, From, Ref, Start + 1, End).
 
 
-%% @doc
+%% @doc Remove objects
+%% @private
 del_object(_Conf, 0, Keys) ->
     ?msg_progress_finished(),
-    Errors = lists:foldl(
-               fun(K, Acc) ->
-                       check_redundancies_1(?env_bucket() ++ "/" ++ K, Acc)
-               end, [], sets:to_list(Keys)),
-    case length(Errors) of
-        0 ->
-            ok;
-        _ ->
-            io:format("Error: ~p~n", [Errors]),
-            erlang:error("del_object/3 - found inconsistent object")
-    end;
+    lists:foreach(fun(K) ->
+                          check_redundancies_2(?env_bucket() ++ "/" ++ K)
+                  end, sets:to_list(Keys)),
+    ok;
 del_object(Conf, Index, Keys) ->
     Key = rnd_key(?env_keys()),
     case sets:is_element(Key, Keys) of
@@ -166,40 +222,40 @@ del_object_1(Conf, Index, Key, Keys) ->
     end.
 
 
-%% @doc
-check_redundancies(_Conf, 0, Errors) ->
-    ?msg_progress_finished(),
-    case length(Errors) of
-        0 ->
-            void;
-        _ ->
-            lists:foreach(fun(E) ->
-                                  io:format("~p~n", [E])
-                          end, Errors)
-    end,
-    ok;
-check_redundancies(Conf, Index, Errors) ->
-    indicator(Index),
-    Key = ?env_bucket() ++ "/" ++ gen_key(Index),
-    Errors_1 = check_redundancies_1(Key, Errors),
-    check_redundancies(Conf, Index - 1, Errors_1).
+%% @doc Check replicated objects
+%% @private
+check_redundancies(Conf, Keys) when Keys > ?UNIT_OF_PARTION ->
+    do_concurrent_exec(Conf, Keys, fun check_redundancies_1/5);
+check_redundancies(Conf, Keys) ->
+    check_redundancies_1(Conf, undefined, undefined, 1, Keys).
 
 %% @private
-check_redundancies_1(Key, Errors) ->
+check_redundancies_1(_, From, Ref, Start, End) when Start > End ->
+    case (From == undefined andalso
+          Ref  == undefined) of
+        true ->
+            ?msg_progress_finished(),
+            ok;
+        false ->
+            erlang:send(From, {Ref, ok})
+    end;
+check_redundancies_1(Conf, From, Ref, Start, End) ->
+    indicator(Start),
+    Key = ?env_bucket() ++ "/" ++ gen_key(Start),
+    ok = check_redundancies_2(Key),
+    check_redundancies_1(Conf, From, Ref, Start + 1, End).
+
+%% @private
+check_redundancies_2(Key) ->
     case rpc:call(?env_manager(), leo_manager_api, whereis, [[Key], true]) of
         {ok, RetL} when length(RetL) == ?NUM_OF_REPLICAS ->
             L1 = lists:nth(1, RetL),
             L2 = lists:nth(2, RetL),
-            case compare_1(Key, L1, L2) of
-                ok ->
-                    Errors;
-                _ ->
-                    [{Key, inconsistency}|Errors]
-            end;
+            ok = compare_1(Key, L1, L2);
         {ok,_RetL} ->
-            [{Key, inconsistency}|Errors];
+            io:format("[ERROR] ~s, ~w~n", [Key, inconsistent_object]);
         Other ->
-            [{Key, Other}|Errors]
+            io:format("[ERROR] ~s, ~p~n", [Key, Other])
     end.
 
 
@@ -208,28 +264,32 @@ compare_1(Key, L1, L2) ->
     %% node-name
     case (element(1, L1) /= element(1, L2)) of
         true ->
-            compare_2(2, Key, L1, L2);
+            ok;
         false ->
-            io:format("Error: ~p, ~p, ~p~n", [Key, L1, L2]),
-            erlang:error("compare_1/2 - found invalid redundancies")
-    end.
+            io:format("[ERROR] ~s, ~p, ~p~n", [Key, L1, L2])
+    end,
+    compare_2(2, Key, L1, L2).
 
 compare_2(9,_Key,_L1,_L2) ->
     ok;
 compare_2(Index, Key, L1, L2) ->
-    case (element(Index, L1) == element(Index, L2)) of
+    case (erlang:size(L1) >= Index andalso
+          erlang:size(L2) >= Index) of
         true ->
-            compare_2(Index + 1, Key, L1, L2);
+            case (element(Index, L1) == element(Index, L2)) of
+                true ->
+                    ok;
+                false ->
+                    io:format("[ERROR] ~s, ~p, ~p~n", [Key, L1, L2])
+            end;
         false ->
-            io:format("Error: ~p, ~p, ~p~n", [Key, L1, L2]),
-            erlang:error("compare_2/3 - found an inconsistent object")
-    end.
+            io:format("[ERROR] ~s, ~p, ~p~n", [Key, L1, L2])
+    end,
+    compare_2(Index + 1, Key, L1, L2).
 
 
-%% ---------------------------------------------------------
-%% Inner Function - Operat a node
-%% ---------------------------------------------------------
 %% @doc Attach the node
+%% @private
 attach_node(Node) ->
     case rpc:call(?env_manager(), leo_manager_mnesia,
                   get_storage_node_by_name, [Node]) of
@@ -268,6 +328,7 @@ detach_node(Node) ->
 
 
 %% @doc Execute rebalance of data
+%% @private
 rebalance() ->
     case rpc:call(?env_manager(), leo_manager_api, rebalance, [null]) of
         ok ->
@@ -279,6 +340,7 @@ rebalance() ->
 
 
 %% @doc Suspend the node
+%% @private
 suspend_node(Node) ->
     case rpc:call(?env_manager(), leo_manager_api, suspend, [Node]) of
         ok ->
@@ -290,6 +352,7 @@ suspend_node(Node) ->
 
 
 %% @doc Resume the node
+%% @private
 resume_node(Node) ->
     Manager = ?env_manager(),
     case catch leo_misc:node_existence(Node) of
@@ -306,6 +369,7 @@ resume_node(Node) ->
             resume_node(Node)
     end.
 
+%% @private
 resume_node_1(Node) ->
     case check_state_of_node(Node, ?STATE_RUNNING) of
         ok ->
@@ -320,6 +384,7 @@ resume_node_1(Node) ->
 
 
 %% @doc check state of the node
+%% @private
 check_state_of_node(Node, State) ->
     case rpc:call(?env_manager(), leo_manager_mnesia,
                   get_storage_node_by_name, [Node]) of
@@ -333,6 +398,7 @@ check_state_of_node(Node, State) ->
 
 
 %% @doc Stop the node
+%% @private
 start_node(Node) ->
     Path = filename:join([?env_leofs_dir(), ?node_to_path(Node)]),
     os:cmd(Path ++ " start"),
@@ -340,6 +406,7 @@ start_node(Node) ->
 
 
 %% @doc Stop the node
+%% @private
 stop_node(Node) ->
     Path = filename:join([?env_leofs_dir(), ?node_to_path(Node)]),
     os:cmd(Path ++ " stop"),
@@ -347,6 +414,7 @@ stop_node(Node) ->
 
 
 %% @doc Retrieve storage nodes
+%% @private
 get_storage_nodes() ->
     case rpc:call(?env_manager(),
                   leo_manager_mnesia, get_storage_nodes_all, []) of
@@ -360,6 +428,7 @@ get_storage_nodes() ->
 
 
 %% @doc Watch mq-stats
+%% @private
 watch_mq() ->
     Nodes = get_storage_nodes(),
     watch_mq_1(Nodes).
@@ -398,6 +467,7 @@ watch_mq_2([#mq_state{state = Stats}|Rest]) ->
 
 
 %% @doc Execute data-compcation
+%% @private
 compaction() ->
     Nodes = get_storage_nodes(),
     compaction_1(Nodes).
@@ -457,6 +527,7 @@ remove_avs(Node) ->
 
 
 %% @doc Recover data of the node
+%% @private
 recover_node(Node) ->
     Ret = case recover_node_1(Node, 0) of
               ok ->
