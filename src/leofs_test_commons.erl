@@ -68,7 +68,7 @@ run(?F_DETACH_NODE,_S3Conf) ->
     ok;
 run(?F_SUSPEND_NODE,_S3Conf) ->
     ok = suspend_node(?SUSPEND_NODE),
-    timer:sleep(timer:second(15)),
+    timer:sleep(timer:seconds(15)),
     ok;
 run(?F_RESUME_NODE,_S3Conf) ->
     ok = resume_node(?RESUME_NODE),
@@ -78,7 +78,7 @@ run(?F_START_NODE,_S3Conf) ->
     ok;
 run(?F_STOP_NODE,_S3Conf) ->
     ok = stop_node(?SUSPEND_NODE),
-    timer:sleep(timer:second(15)),
+    timer:sleep(timer:seconds(15)),
     ok;
 run(?F_WATCH_MQ,_S3Conf) ->
     ok = watch_mq(),
