@@ -36,6 +36,7 @@ run({ScenarioName, Items}, S3Conf) ->
 
 %% @private
 run_1([],_S3Conf) ->
+    timer:sleep(timer:seconds(5)),
     ok;
 run_1([{F, Description}|Rest], S3Conf) ->
     io:format("~n   * ~w (~s)", [F, Description]),

@@ -159,7 +159,8 @@
                                     ?SC_ITEM_GET_OBJ
                                    ]}).
 
--define(SCENARIO_4, {"SCENARIO-4", [?SC_ITEM_SUSPEND_NODE,
+-define(SCENARIO_4, {"SCENARIO-4", [?SC_ITEM_PUT_OBJ,
+                                    ?SC_ITEM_SUSPEND_NODE,
                                     ?SC_ITEM_STOP_NODE,
                                     ?SC_ITEM_GET_OBJ,
                                     ?SC_ITEM_START_NODE,
