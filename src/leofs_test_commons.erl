@@ -43,7 +43,7 @@ run(?F_PUT_OBJ, S3Conf) ->
     ok = put_object(S3Conf, Keys),
     ok;
 run(?F_GET_OBJ, S3Conf) ->
-    Keys = gen_key_by_one_percent(?env_keys()),
+    Keys = ?env_keys(),
     ok = get_object(S3Conf, Keys, 200),
     ok;
 run(?F_GET_OBJ_NOT_FOUND, S3Conf) ->
@@ -221,6 +221,10 @@ put_object_1(Conf, From, Ref, Start, End) ->
 get_object(_Conf, 0,_ExpectedCode) ->
     ?msg_progress_finished(),
     ok;
+get_object(Conf, Keys, 200) when Keys > ?UNIT_OF_PARTION ->
+    do_concurrent_exec(Conf, Keys, fun get_object_1/5);
+get_object(Conf, Keys, 200) ->
+    get_object_1(Conf, undefined, undefined, 1, Keys);
 get_object(Conf, Index, ExpectedCode) ->
     indicator(Index, 1),
     Key = rnd_key(?env_keys()),
@@ -236,6 +240,27 @@ get_object(Conf, Index, ExpectedCode) ->
             end;
         _Ret ->
             get_object(Conf, Index - 1, ExpectedCode)
+    end.
+
+%% @private
+get_object_1(_, From, Ref, Start, End) when Start > End ->
+    case (From == undefined andalso
+          Ref  == undefined) of
+        true ->
+            ?msg_progress_finished(),
+            ok;
+        false ->
+            erlang:send(From, {Ref, ok})
+    end;
+get_object_1(Conf, From, Ref, Start, End) ->
+    indicator(Start),
+    Key = gen_key(Start),
+
+    case catch erlcloud_s3:get_object(?env_bucket(), Key, Conf) of
+        {'EXIT', Cause} ->
+            erlang:error(Cause);
+        _ ->
+            get_object_1(Conf, From, Ref, Start + 1, End)
     end.
 
 
