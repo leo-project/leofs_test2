@@ -23,6 +23,7 @@
 
 -include("leofs_test.hrl").
 -include("leo_redundant_manager.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 -export([run/2]).
 
@@ -41,15 +42,17 @@ run(?F_PUT_OBJ, S3Conf) ->
     Keys = ?env_keys(),
     ok = put_object(S3Conf, Keys),
     ok;
+run(?F_GET_OBJ, S3Conf) ->
+    Keys = gen_key_by_one_percent(?env_keys()),
+    ok = get_object(S3Conf, Keys, 200),
+    ok;
+run(?F_GET_OBJ_NOT_FOUND, S3Conf) ->
+    Keys = gen_key_by_one_percent(?env_keys()),
+    ok = get_object(S3Conf, Keys, 404),
+    ok;
 run(?F_DEL_OBJ, S3Conf) ->
-    Keys = ?env_keys(),
-    Keys_1 = case (Keys > 10000) of
-                 true ->
-                     round(Keys/100);
-                 false ->
-                     100
-             end,
-    ok = del_object(S3Conf, Keys_1, sets:new()),
+    Keys = gen_key_by_one_percent(?env_keys()),
+    ok = del_object(S3Conf, Keys, sets:new()),
     ok;
 run(?F_CHECK_REPLICAS, S3Conf) ->
     Keys = ?env_keys(),
@@ -93,6 +96,24 @@ run(_F,_) ->
 %% ---------------------------------------------------------
 %% Inner Functions
 %% ---------------------------------------------------------
+%% @doc Generate keys
+%% @private
+-spec(gen_key_by_one_percent(Keys) ->
+             pos_integer() when Keys::pos_integer()).
+gen_key_by_one_percent(Keys) ->
+    case (Keys > 10000) of
+        true ->
+            round(Keys/100);
+        false ->
+            100
+    end.
+
+%% @doc Generate a key by index
+%% @private
+gen_key(Index) ->
+    lists:append(["test/", integer_to_list(Index)]).
+
+
 %% @doc Output progress
 %% @private
 indicator(Index) ->
@@ -104,12 +125,6 @@ indicator(Index, Interval) ->
         false ->
             void
     end.
-
-
-%% @doc Generate a key by index
-%% @private
-gen_key(Index) ->
-    lists:append(["test/", integer_to_list(Index)]).
 
 
 %% @doc Generate a key at random
@@ -198,6 +213,29 @@ put_object_1(Conf, From, Ref, Start, End) ->
             put_object_1(Conf, From, Ref, Start, End);
         _ ->
             put_object_1(Conf, From, Ref, Start + 1, End)
+    end.
+
+
+%% @doc Retrieve objects
+%% @private
+get_object(_Conf, 0,_ExpectedCode) ->
+    ?msg_progress_finished(),
+    ok;
+get_object(Conf, Index, ExpectedCode) ->
+    indicator(Index, 1),
+    Key = rnd_key(?env_keys()),
+
+    case catch erlcloud_s3:get_object(?env_bucket(), Key, Conf) of
+        {'EXIT', Cause} ->
+            El = element(1, Cause),
+            case El of
+                {aws_error,{http_error,404,_,_}} when ExpectedCode == 404 ->
+                    get_object(Conf, Index - 1, ExpectedCode);
+                _ ->
+                    erlang:error(Cause)
+            end;
+        _Ret ->
+            get_object(Conf, Index - 1, ExpectedCode)
     end.
 
 
