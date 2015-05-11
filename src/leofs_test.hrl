@@ -146,8 +146,8 @@
 -define(SCENARIO_2, {"SCENARIO-2", [?SC_ITEM_PUT_OBJ,
                                     ?SC_ITEM_DETACH_NODE,
                                     ?SC_ITEM_WATCH_MQ,
-                                    ?SC_ITEM_CHECK_REPLICAS,
-                                    ?SC_ITEM_GET_OBJ
+                                    ?SC_ITEM_GET_OBJ,
+                                    ?SC_ITEM_CHECK_REPLICAS
                                    ]}).
 
 -define(SCENARIO_3, {"SCENARIO-3", [?SC_ITEM_ATTACH_NODE,
