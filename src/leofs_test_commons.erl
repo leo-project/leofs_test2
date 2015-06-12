@@ -550,7 +550,7 @@ compaction_1([]) ->
     ?msg_progress_finished(),
     ok;
 compaction_1([Node|Rest]) ->
-    case rpc:call(?env_manager(), leo_manager_api, compact, ["start", Node, 'all', 3]) of
+    case rpc:call(?env_manager(), leo_manager_api, compact, ["start", Node, 'all', 1]) of
         ok ->
             ok = compaction_2(Node),
             compaction_1(Rest);
