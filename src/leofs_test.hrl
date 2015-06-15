@@ -98,6 +98,7 @@
 -define(F_STOP_NODE,         stop_node).
 -define(F_WATCH_MQ,          watch_mq).
 -define(F_COMPACTION,        compaction).
+-define(F_DIAGNOSIS,         diagnosis).
 -define(F_REMOVE_AVS,        remove_avs).
 -define(F_RECOVER_NODE,      recover_node).
 
@@ -115,6 +116,7 @@
 -define(SC_ITEM_STOP_NODE,         {?F_STOP_NODE,      "stop a node"}).
 -define(SC_ITEM_WATCH_MQ,          {?F_WATCH_MQ,       "watch state of mq"}).
 -define(SC_ITEM_COMPACTION,        {?F_COMPACTION,     "execute data-compaction"}).
+-define(SC_ITEM_DIAGNOSIS,         {?F_DIAGNOSIS,      "execute data-diagnosis"}).
 -define(SC_ITEM_REMOVE_AVS,        {?F_REMOVE_AVS,     "remove avs of a node"}).
 -define(SC_ITEM_RECOVER_NODE,      {?F_RECOVER_NODE,   "recover data of a node"}).
 -define(SC_ITEMS, [?SC_ITEM_PUT_OBJ,
@@ -154,6 +156,7 @@
                                     ?SC_ITEM_WATCH_MQ,
                                     ?SC_ITEM_CHECK_REPLICAS,
                                     ?SC_ITEM_GET_OBJ,
+                                    ?SC_ITEM_DIAGNOSIS,
                                     ?SC_ITEM_COMPACTION,
                                     ?SC_ITEM_CHECK_REPLICAS,
                                     ?SC_ITEM_GET_OBJ

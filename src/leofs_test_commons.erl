@@ -83,6 +83,9 @@ run(?F_STOP_NODE,_S3Conf) ->
 run(?F_WATCH_MQ,_S3Conf) ->
     ok = watch_mq(),
     ok;
+run(?F_DIAGNOSIS,_S3Conf) ->
+    ok = diagnosis(),
+    ok;
 run(?F_COMPACTION,_S3Conf) ->
     ok = compaction(),
     ok;
@@ -541,6 +544,27 @@ watch_mq_2([#mq_state{state = Stats}|Rest]) ->
 
 %% @doc Execute data-compcation
 %% @private
+diagnosis() ->
+    Nodes = get_storage_nodes(),
+    diagnosis_1(Nodes).
+
+%% @private
+diagnosis_1([]) ->
+    ?msg_progress_finished(),
+    ok;
+diagnosis_1([Node|Rest]) ->
+    case rpc:call(?env_manager(), leo_manager_api, diagnose_data, [Node]) of
+        ok ->
+            ok = compaction_2(Node),
+            diagnosis_1(Rest);
+        _Other ->
+            ?msg_error("Could not execute data-diagnosis"),
+            halt()
+    end.
+
+
+%% @doc Execute data-compcation
+%% @private
 compaction() ->
     Nodes = get_storage_nodes(),
     compaction_1(Nodes).
@@ -569,7 +593,7 @@ compaction_2(Node) ->
             timer:sleep(timer:seconds(3)),
             compaction_2(Node);
         _ ->
-            ?msg_error("data-compaction failure"),
+            ?msg_error("data-compaction/data-diagnosis failure"),
             halt()
     end.
 
