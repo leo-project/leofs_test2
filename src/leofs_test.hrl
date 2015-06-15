@@ -158,6 +158,7 @@
                                     ?SC_ITEM_GET_OBJ,
                                     ?SC_ITEM_DIAGNOSIS,
                                     ?SC_ITEM_COMPACTION,
+                                    ?SC_ITEM_DIAGNOSIS,
                                     ?SC_ITEM_CHECK_REPLICAS,
                                     ?SC_ITEM_GET_OBJ
                                    ]}).
