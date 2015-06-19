@@ -533,8 +533,7 @@ watch_mq_1([Node|Rest] = Nodes) ->
 watch_mq_2([]) ->
     ok;
 watch_mq_2([#mq_state{state = Stats}|Rest]) ->
-    case (leo_misc:get_value('consumer_num_of_msgs', Stats, 0) == 0 andalso
-          leo_misc:get_value('consumer_status', Stats) == 'idling') of
+    case (leo_misc:get_value('consumer_num_of_msgs', Stats, 0) == 0) of
         true ->
             watch_mq_2(Rest);
         false ->
