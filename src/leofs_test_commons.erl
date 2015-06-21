@@ -510,6 +510,7 @@ watch_mq() ->
     watch_mq_1(Nodes).
 
 watch_mq_1([]) ->
+    io:format("~n"),
     timer:sleep(timer:seconds(5)),
     ?msg_progress_finished(),
     ok;
