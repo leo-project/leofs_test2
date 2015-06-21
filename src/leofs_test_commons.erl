@@ -512,10 +512,9 @@ watch_mq() ->
 watch_mq_1([]) ->
     io:format("~n"),
     timer:sleep(timer:seconds(5)),
-    ?msg_progress_finished(),
     ok;
 watch_mq_1([Node|Rest]) ->
-    io:format("~n* node:~p", [Node]),
+    io:format("~n            * node:~p", [Node]),
     case rpc:call(?env_manager(),
                   leo_manager_api, mq_stats, [Node]) of
         {ok, RetL} ->
