@@ -514,8 +514,7 @@ watch_mq_1([]) ->
     timer:sleep(timer:seconds(5)),
     ?msg_progress_finished(),
     ok;
-watch_mq_1([Node|Rest] = Nodes) ->
-    ?msg_progress_ongoing(),
+watch_mq_1([Node|Rest]) ->
     io:format("~n* node:~p", [Node]),
     case rpc:call(?env_manager(),
                   leo_manager_api, mq_stats, [Node]) of
@@ -525,7 +524,7 @@ watch_mq_1([Node|Rest] = Nodes) ->
                     watch_mq_1(Rest);
                 _ ->
                     timer:sleep(timer:seconds(5)),
-                    watch_mq_1(Nodes)
+                    watch_mq()
             end;
         _ ->
             ?msg_error("Could not retrieve mq-state of the node"),
@@ -537,7 +536,7 @@ watch_mq_2([]) ->
 watch_mq_2([#mq_state{id = Id,
                       state = Stats}|Rest]) ->
     NumOfMsgs = leo_misc:get_value('consumer_num_of_msgs', Stats, 0),
-    io:format("~p:~p", [Id, NumOfMsgs]),
+    io:format(", ~p:~p", [Id, NumOfMsgs]),
     case (NumOfMsgs == 0) of
         true ->
             watch_mq_2(Rest);
