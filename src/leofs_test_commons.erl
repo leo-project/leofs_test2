@@ -515,6 +515,7 @@ watch_mq_1([]) ->
     ok;
 watch_mq_1([Node|Rest] = Nodes) ->
     ?msg_progress_ongoing(),
+    io:format("~n* node:~p", [Node]),
     case rpc:call(?env_manager(),
                   leo_manager_api, mq_stats, [Node]) of
         {ok, RetL} ->
@@ -532,8 +533,11 @@ watch_mq_1([Node|Rest] = Nodes) ->
 
 watch_mq_2([]) ->
     ok;
-watch_mq_2([#mq_state{state = Stats}|Rest]) ->
-    case (leo_misc:get_value('consumer_num_of_msgs', Stats, 0) == 0) of
+watch_mq_2([#mq_state{id = Id,
+                      state = Stats}|Rest]) ->
+    NumOfMsgs = leo_misc:get_value('consumer_num_of_msgs', Stats, 0),
+    io:format("~p:~p", [Id, NumOfMsgs]),
+    case (NumOfMsgs == 0) of
         true ->
             watch_mq_2(Rest);
         false ->
