@@ -367,9 +367,9 @@ compare_2(Index, Key, L1, L2) ->
 %% @doc Attach the node
 %% @private
 attach_node(Node) ->
-    case rpc:call(?env_manager(), leo_manager_mnesia,
-                  get_storage_node_by_name, [Node]) of
-        not_found ->
+    case rpc:call(?env_manager(), leo_redundant_manager_api,
+                  get_member_by_node, [Node]) of
+        {error, not_found} ->
             ok = start_node(Node),
             attach_node_1(Node, 0);
         _ ->
@@ -381,9 +381,9 @@ attach_node_1(Node, ?THRESHOLD_ERROR_TIMES) ->
     ?msg_error(["Could not attach the node:", Node]),
     halt();
 attach_node_1(Node, Times) ->
-    case rpc:call(?env_manager(), leo_manager_mnesia,
-                  get_storage_node_by_name, [Node]) of
-        {ok, #node_state{state = ?STATE_ATTACHED}} ->
+    case rpc:call(?env_manager(), leo_redundant_manager_api,
+                  get_member_by_node, [Node]) of
+        {ok, #member{state = ?STATE_ATTACHED}} ->
             rebalance();
         _ ->
             timer:sleep(timer:seconds(5)),
@@ -462,9 +462,9 @@ resume_node_1(Node) ->
 %% @doc check state of the node
 %% @private
 check_state_of_node(Node, State) ->
-    case rpc:call(?env_manager(), leo_manager_mnesia,
-                  get_storage_node_by_name, [Node]) of
-        {ok, #node_state{state = State}} ->
+    case rpc:call(?env_manager(), leo_redundant_manager_api,
+                  get_member_by_node, [Node]) of
+        {ok, #member{state = State}} ->
             ok;
         {ok, _NodeState} ->
             {error, not_yet};
@@ -493,10 +493,10 @@ stop_node(Node) ->
 %% @private
 get_storage_nodes() ->
     case rpc:call(?env_manager(),
-                  leo_manager_mnesia, get_storage_nodes_all, []) of
+                  leo_redundant_manager_api, get_members, []) of
         {ok, RetL} ->
-            [N || #node_state{node = N,
-                              state = ?STATE_RUNNING} <- RetL];
+            [N || #member{node = N,
+                          state = ?STATE_RUNNING} <- RetL];
         _ ->
             ?msg_error("Could not retrieve the running nodes"),
             halt()

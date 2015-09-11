@@ -113,10 +113,10 @@ get_type_from_dir(Dir) ->
 check_status(running) ->
     Manager = ?env_manager(),
     case rpc:call(Manager,
-                  leo_manager_mnesia, get_storage_nodes_all, []) of
+                  leo_redundant_manager_api, get_members, []) of
         {ok, RetL} when length(RetL) == length(?storage_nodes) ->
-            Nodes = [N || #node_state{node = N,
-                                      state = ?STATE_RUNNING} <- RetL],
+            Nodes = [N || #member{node = N,
+                                  state = ?STATE_RUNNING} <- RetL],
             case length(Nodes) == length(?storage_nodes) of
                 true ->
                     check_status(gateway, length(?gateway_nodes), []);
@@ -131,10 +131,10 @@ check_status(attached) ->
     NumOfStorages = length(?storage_nodes),
 
     Ret = case rpc:call(Manager,
-                        leo_manager_mnesia, get_storage_nodes_all, []) of
+                        leo_redundant_manager_api, get_members, []) of
               {ok, RetL} when length(RetL) == NumOfStorages ->
-                  Nodes = [N || #node_state{node = N,
-                                            state = ?STATE_ATTACHED} <- RetL],
+                  Nodes = [N || #member{node = N,
+                                        state = ?STATE_ATTACHED} <- RetL],
                   case length(Nodes) == NumOfStorages of
                       true ->
                           {ok, Nodes};
