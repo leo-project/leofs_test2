@@ -23,6 +23,7 @@
 
 -include("leofs_test.hrl").
 -include("leo_redundant_manager.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 -export([run/2]).
 
@@ -41,15 +42,17 @@ run(?F_PUT_OBJ, S3Conf) ->
     Keys = ?env_keys(),
     ok = put_object(S3Conf, Keys),
     ok;
-run(?F_DEL_OBJ, S3Conf) ->
+run(?F_GET_OBJ, S3Conf) ->
     Keys = ?env_keys(),
-    Keys_1 = case (Keys > 10000) of
-                 true ->
-                     round(Keys/100);
-                 false ->
-                     100
-             end,
-    ok = del_object(S3Conf, Keys_1, sets:new()),
+    ok = get_object(S3Conf, Keys, 200),
+    ok;
+run(?F_GET_OBJ_NOT_FOUND, S3Conf) ->
+    Keys = gen_key_by_one_percent(?env_keys()),
+    ok = get_object(S3Conf, Keys, 404),
+    ok;
+run(?F_DEL_OBJ, S3Conf) ->
+    Keys = gen_key_by_one_percent(?env_keys()),
+    ok = del_object(S3Conf, Keys, sets:new()),
     ok;
 run(?F_CHECK_REPLICAS, S3Conf) ->
     Keys = ?env_keys(),
@@ -65,6 +68,7 @@ run(?F_DETACH_NODE,_S3Conf) ->
     ok;
 run(?F_SUSPEND_NODE,_S3Conf) ->
     ok = suspend_node(?SUSPEND_NODE),
+    timer:sleep(timer:seconds(15)),
     ok;
 run(?F_RESUME_NODE,_S3Conf) ->
     ok = resume_node(?RESUME_NODE),
@@ -74,9 +78,13 @@ run(?F_START_NODE,_S3Conf) ->
     ok;
 run(?F_STOP_NODE,_S3Conf) ->
     ok = stop_node(?SUSPEND_NODE),
+    timer:sleep(timer:seconds(15)),
     ok;
 run(?F_WATCH_MQ,_S3Conf) ->
     ok = watch_mq(),
+    ok;
+run(?F_DIAGNOSIS,_S3Conf) ->
+    ok = diagnosis(),
     ok;
 run(?F_COMPACTION,_S3Conf) ->
     ok = compaction(),
@@ -93,6 +101,24 @@ run(_F,_) ->
 %% ---------------------------------------------------------
 %% Inner Functions
 %% ---------------------------------------------------------
+%% @doc Generate keys
+%% @private
+-spec(gen_key_by_one_percent(Keys) ->
+             pos_integer() when Keys::pos_integer()).
+gen_key_by_one_percent(Keys) ->
+    case (Keys > 10000) of
+        true ->
+            round(Keys/100);
+        false ->
+            100
+    end.
+
+%% @doc Generate a key by index
+%% @private
+gen_key(Index) ->
+    lists:append(["test/", integer_to_list(Index)]).
+
+
 %% @doc Output progress
 %% @private
 indicator(Index) ->
@@ -104,12 +130,6 @@ indicator(Index, Interval) ->
         false ->
             void
     end.
-
-
-%% @doc Generate a key by index
-%% @private
-gen_key(Index) ->
-    lists:append(["test/", integer_to_list(Index)]).
 
 
 %% @doc Generate a key at random
@@ -165,6 +185,9 @@ loop(Ref, NumOfPartitions) ->
             loop(Ref, NumOfPartitions - 1);
         _ ->
             loop(Ref, NumOfPartitions)
+    after
+        ?DEF_TIMEOUT ->
+            {error, timeout}
     end.
 
 
@@ -189,8 +212,61 @@ put_object_1(Conf, From, Ref, Start, End) ->
     indicator(Start),
     Key = gen_key(Start),
     Val = crypto:rand_bytes(16),
-    erlcloud_s3:put_object(?env_bucket(), Key, Val, [], Conf),
-    put_object_1(Conf, From, Ref, Start + 1, End).
+    case catch erlcloud_s3:put_object(?env_bucket(), Key, Val, [], Conf) of
+        {'EXIT',_Cause} ->
+            timer:sleep(timer:seconds(1)),
+            put_object_1(Conf, From, Ref, Start, End);
+        _ ->
+            put_object_1(Conf, From, Ref, Start + 1, End)
+    end.
+
+
+%% @doc Retrieve objects
+%% @private
+get_object(_Conf, 0,_ExpectedCode) ->
+    ?msg_progress_finished(),
+    ok;
+get_object(Conf, Keys, 200) when Keys > ?UNIT_OF_PARTION ->
+    do_concurrent_exec(Conf, Keys, fun get_object_1/5);
+get_object(Conf, Keys, 200) ->
+    get_object_1(Conf, undefined, undefined, 1, Keys);
+get_object(Conf, Index, ExpectedCode) ->
+    indicator(Index, 1),
+    Key = rnd_key(?env_keys()),
+
+    case catch erlcloud_s3:get_object(?env_bucket(), Key, Conf) of
+        {'EXIT', Cause} ->
+            El = element(1, Cause),
+            case El of
+                {aws_error,{http_error,404,_,_}} when ExpectedCode == 404 ->
+                    get_object(Conf, Index - 1, ExpectedCode);
+                _ ->
+                    erlang:error(Cause)
+            end;
+        _Ret ->
+            get_object(Conf, Index - 1, ExpectedCode)
+    end.
+
+%% @private
+get_object_1(_, From, Ref, Start, End) when Start > End ->
+    case (From == undefined andalso
+          Ref  == undefined) of
+        true ->
+            ?msg_progress_finished(),
+            ok;
+        false ->
+            erlang:send(From, {Ref, ok})
+    end;
+get_object_1(Conf, From, Ref, Start, End) ->
+    indicator(Start),
+    Key = gen_key(Start),
+
+    case catch erlcloud_s3:get_object(?env_bucket(), Key, Conf) of
+        {'EXIT', Cause} ->
+            erlang:error(Cause);
+        _ ->
+            get_object_1(Conf, From, Ref, Start + 1, End)
+    end.
 
 
 %% @doc Remove objects
@@ -291,9 +367,9 @@ compare_2(Index, Key, L1, L2) ->
 %% @doc Attach the node
 %% @private
 attach_node(Node) ->
-    case rpc:call(?env_manager(), leo_manager_mnesia,
-                  get_storage_node_by_name, [Node]) of
-        not_found ->
+    case rpc:call(?env_manager(), leo_redundant_manager_api,
+                  get_member_by_node, [Node]) of
+        {error, not_found} ->
             ok = start_node(Node),
             attach_node_1(Node, 0);
         _ ->
@@ -305,9 +381,9 @@ attach_node_1(Node, ?THRESHOLD_ERROR_TIMES) ->
     ?msg_error(["Could not attach the node:", Node]),
     halt();
 attach_node_1(Node, Times) ->
-    case rpc:call(?env_manager(), leo_manager_mnesia,
-                  get_storage_node_by_name, [Node]) of
-        {ok, #node_state{state = ?STATE_ATTACHED}} ->
+    case rpc:call(?env_manager(), leo_redundant_manager_api,
+                  get_member_by_node, [Node]) of
+        {ok, #member{state = ?STATE_ATTACHED}} ->
             rebalance();
         _ ->
             timer:sleep(timer:seconds(5)),
@@ -386,9 +462,9 @@ resume_node_1(Node) ->
 %% @doc check state of the node
 %% @private
 check_state_of_node(Node, State) ->
-    case rpc:call(?env_manager(), leo_manager_mnesia,
-                  get_storage_node_by_name, [Node]) of
-        {ok, #node_state{state = State}} ->
+    case rpc:call(?env_manager(), leo_redundant_manager_api,
+                  get_member_by_node, [Node]) of
+        {ok, #member{state = State}} ->
             ok;
         {ok, _NodeState} ->
             {error, not_yet};
@@ -417,10 +493,10 @@ stop_node(Node) ->
 %% @private
 get_storage_nodes() ->
     case rpc:call(?env_manager(),
-                  leo_manager_mnesia, get_storage_nodes_all, []) of
+                  leo_redundant_manager_api, get_members, []) of
         {ok, RetL} ->
-            [N || #node_state{node = N,
-                              state = ?STATE_RUNNING} <- RetL];
+            [N || #member{node = N,
+                          state = ?STATE_RUNNING} <- RetL];
         _ ->
             ?msg_error("Could not retrieve the running nodes"),
             halt()
@@ -434,11 +510,11 @@ watch_mq() ->
     watch_mq_1(Nodes).
 
 watch_mq_1([]) ->
+    io:format("~n"),
     timer:sleep(timer:seconds(5)),
-    ?msg_progress_finished(),
     ok;
-watch_mq_1([Node|Rest] = Nodes) ->
-    ?msg_progress_ongoing(),
+watch_mq_1([Node|Rest]) ->
+    io:format("~n            * node:~p", [Node]),
     case rpc:call(?env_manager(),
                   leo_manager_api, mq_stats, [Node]) of
         {ok, RetL} ->
@@ -447,7 +523,7 @@ watch_mq_1([Node|Rest] = Nodes) ->
                     watch_mq_1(Rest);
                 _ ->
                     timer:sleep(timer:seconds(5)),
-                    watch_mq_1(Nodes)
+                    watch_mq()
             end;
         _ ->
             ?msg_error("Could not retrieve mq-state of the node"),
@@ -456,13 +532,36 @@ watch_mq_1([Node|Rest] = Nodes) ->
 
 watch_mq_2([]) ->
     ok;
-watch_mq_2([#mq_state{state = Stats}|Rest]) ->
-    case (leo_misc:get_value('consumer_num_of_msgs', Stats, 0) == 0 andalso
-          leo_misc:get_value('consumer_status', Stats) == 'idling') of
+watch_mq_2([#mq_state{id = Id,
+                      state = Stats}|Rest]) ->
+    NumOfMsgs = leo_misc:get_value('consumer_num_of_msgs', Stats, 0),
+    io:format(", ~p:~p", [Id, NumOfMsgs]),
+    case (NumOfMsgs == 0) of
         true ->
             watch_mq_2(Rest);
         false ->
             still_running
+    end.
+
+
+%% @doc Execute data-compcation
+%% @private
+diagnosis() ->
+    Nodes = get_storage_nodes(),
+    diagnosis_1(Nodes).
+
+%% @private
+diagnosis_1([]) ->
+    ?msg_progress_finished(),
+    ok;
+diagnosis_1([Node|Rest]) ->
+    case rpc:call(?env_manager(), leo_manager_api, diagnose_data, [Node]) of
+        ok ->
+            ok = compaction_2(Node),
+            diagnosis_1(Rest);
+        _Other ->
+            ?msg_error("Could not execute data-diagnosis"),
+            halt()
     end.
 
 
@@ -477,7 +576,7 @@ compaction_1([]) ->
     ?msg_progress_finished(),
     ok;
 compaction_1([Node|Rest]) ->
-    case rpc:call(?env_manager(), leo_manager_api, compact, ["start", Node, 'all', 3]) of
+    case rpc:call(?env_manager(), leo_manager_api, compact, ["start", Node, 'all', 1]) of
         ok ->
             ok = compaction_2(Node),
             compaction_1(Rest);
@@ -496,7 +595,7 @@ compaction_2(Node) ->
             timer:sleep(timer:seconds(3)),
             compaction_2(Node);
         _ ->
-            ?msg_error("data-compaction failure"),
+            ?msg_error("data-compaction/data-diagnosis failure"),
             halt()
     end.
 

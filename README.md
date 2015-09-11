@@ -99,6 +99,34 @@ $ ./leofs_test -d /home/yosuke/dev/leo/test/leofs-1.2.5-dev/package -t check_red
 ::: Finished (13sec) :::
 ```
 
+## Milestone
+
+### v0.4: Improve the basic scenarios retrieved from leofs-adm's commands
+
+1. check whether mq-(suspend|resume) works
+2. check whether recover-(file|ring|cluster) works
+3. check whether compaction-(suspend|resume) works
+4. check whether du (detail) works
+5. check whether purge-cache works
+6. check whether remove-gateway works
+7. check whether (backup|restore)-mnesia works
+8. check whether update-managers works
+9. check whether dump-ring works
+10. check whether user related functions work
+11. check whether endpoint related functions work
+12. check whether bucket related functions work
+13. check whether multi-dc related functions work
+
+### v0.6: Implement the advanced scenarios (mainly in case of failures)
+
+1. check whether leo_storage cluster works with one storage being dead
+2. check whether leo_storage cluster fail-back
+3. check whether leo_storage cluster respond an expected error in case # of replicas < N
+4. check whether leo_storage cluster works while compaction is ongoing
+5. check whether leo_storage cluster works while rebalance is ongoing
+6. check whether leo_storage cluster works while compaction AND rebalance are ongoing
+
+
 ## Sponsors
 
 LeoProject/LeoFS is sponsored by [Rakuten, Inc.](http://global.rakuten.com/corp/) and [Rakuten Institute of Technology](http://rit.rakuten.co.jp/).

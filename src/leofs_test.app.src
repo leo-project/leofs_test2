@@ -22,7 +22,7 @@
 %%======================================================================
 {application, leofs_test,
  [{description, "LeoFS Test Suite"},
-  {vsn, "0.2.2"},
+  {vsn, "0.2.4"},
   {modules, []},
   {registered, []},
   {applications, [kernel,
