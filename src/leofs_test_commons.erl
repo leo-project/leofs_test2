@@ -42,6 +42,10 @@ run(?F_PUT_OBJ, S3Conf) ->
     Keys = ?env_keys(),
     ok = put_object(S3Conf, Keys),
     ok;
+run(?F_PUT_ZERO_BYTE_OBJ, S3Conf) ->
+    Keys = ?env_keys(),
+    ok = put_zero_byte_object(S3Conf, Keys),
+    ok;
 run(?F_GET_OBJ, S3Conf) ->
     Keys = ?env_keys(),
     ok = get_object(S3Conf, Keys, 200),
@@ -197,6 +201,23 @@ put_object(Conf, Keys) when Keys > ?UNIT_OF_PARTION ->
     do_concurrent_exec(Conf, Keys, fun put_object_1/5);
 put_object(Conf, Keys) ->
     put_object_1(Conf, undefined, undefined, 1, Keys).
+
+
+put_zero_byte_object(_,0) ->
+    ?msg_progress_finished(),
+    ok;
+put_zero_byte_object(Conf, Keys) ->
+    Key = gen_key(Keys),
+    indicator(Keys),
+
+    case catch erlcloud_s3:put_object(?env_bucket(), Key, <<>>, [], Conf) of
+        {'EXIT',_Cause} ->
+            timer:sleep(timer:seconds(1)),
+            put_zero_byte_object(Conf, Keys);
+        _ ->
+            put_zero_byte_object(Conf, Keys - 1)
+    end.
+
 
 %% @private
 put_object_1(_, From, Ref, Start, End) when Start > End ->

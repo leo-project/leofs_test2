@@ -85,6 +85,7 @@
 
 %% TEST Scenatios:
 -define(F_PUT_OBJ,           put_objects).
+-define(F_PUT_ZERO_BYTE_OBJ, put_zero_byte_objects).
 -define(F_GET_OBJ,           get_objects).
 -define(F_GET_OBJ_NOT_FOUND, get_objects_not_found).
 -define(F_DEL_OBJ,           del_objects).
@@ -103,6 +104,7 @@
 -define(F_RECOVER_NODE,      recover_node).
 
 -define(SC_ITEM_PUT_OBJ,           {?F_PUT_OBJ,           "put objects"}).
+-define(SC_ITEM_PUT_ZERO_BYTE_OBJ, {?F_PUT_ZERO_BYTE_OBJ, "put zero byte objects"}).
 -define(SC_ITEM_GET_OBJ,           {?F_GET_OBJ,           "get objects"}).
 -define(SC_ITEM_GET_OBJ_NOT_FOUND, {?F_GET_OBJ_NOT_FOUND, "get objects_not_found"}).
 -define(SC_ITEM_DEL_OBJ,           {?F_DEL_OBJ,        "remove objects"}).
@@ -138,6 +140,8 @@
                   ]).
 -define(SCENARIO_1, {"SCENARIO-1", [?SC_ITEM_CREATE_BUCKET,
                                     ?SC_ITEM_GET_OBJ_NOT_FOUND,
+                                    ?SC_ITEM_PUT_ZERO_BYTE_OBJ,
+                                    ?SC_ITEM_GET_OBJ,
                                     ?SC_ITEM_PUT_OBJ,
                                     ?SC_ITEM_GET_OBJ,
                                     ?SC_ITEM_CHECK_REPLICAS,
