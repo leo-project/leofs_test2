@@ -92,7 +92,9 @@
 -define(F_CREATE_BUCKET,     create_bucket).
 -define(F_CHECK_REPLICAS,    check_redundancies).
 -define(F_ATTACH_NODE,       attach_node).
+-define(F_ATTACH_NODE_FOR_TAKEOVER, attach_node_for_takeover).
 -define(F_DETACH_NODE,       detach_node).
+-define(F_DETACH_NODE_FOR_TAKEOVER, detach_node_for_takeover).
 -define(F_SUSPEND_NODE,      suspend_node).
 -define(F_RESUME_NODE,       resume_node).
 -define(F_START_NODE,        start_node).
@@ -111,7 +113,9 @@
 -define(SC_ITEM_CREATE_BUCKET,     {?F_CREATE_BUCKET,  "create a bucket"}).
 -define(SC_ITEM_CHECK_REPLICAS,    {?F_CHECK_REPLICAS, "check redundancies of replicas"}).
 -define(SC_ITEM_ATTACH_NODE,       {?F_ATTACH_NODE,    "attach a node"}).
+-define(SC_ITEM_ATTACH_NODE_1,     {?F_ATTACH_NODE_FOR_TAKEOVER, "attach a node for takeover"}).
 -define(SC_ITEM_DETACH_NODE,       {?F_DETACH_NODE,    "detach a node"}).
+-define(SC_ITEM_DETACH_NODE_1,     {?F_DETACH_NODE_FOR_TAKEOVER, "detach a node"}).
 -define(SC_ITEM_SUSPEND_NODE,      {?F_SUSPEND_NODE,   "suspend a node"}).
 -define(SC_ITEM_RESUME_NODE,       {?F_RESUME_NODE,    "resume a node"}).
 -define(SC_ITEM_START_NODE,        {?F_START_NODE,     "start a node"}).
@@ -138,6 +142,7 @@
                    ?SC_ITEM_REMOVE_AVS,
                    ?SC_ITEM_RECOVER_NODE
                   ]).
+%% general tests
 -define(SCENARIO_1, {"SCENARIO-1", [?SC_ITEM_CREATE_BUCKET,
                                     ?SC_ITEM_GET_OBJ_NOT_FOUND,
                                     ?SC_ITEM_PUT_ZERO_BYTE_OBJ,
@@ -149,6 +154,7 @@
                                     ?SC_ITEM_CHECK_REPLICAS
                                    ]}).
 
+%% detach a node
 -define(SCENARIO_2, {"SCENARIO-2", [?SC_ITEM_PUT_OBJ,
                                     ?SC_ITEM_DETACH_NODE,
                                     ?SC_ITEM_WATCH_MQ,
@@ -156,7 +162,17 @@
                                     ?SC_ITEM_CHECK_REPLICAS
                                    ]}).
 
--define(SCENARIO_3, {"SCENARIO-3", [?SC_ITEM_ATTACH_NODE,
+%% take-over a node
+-define(SCENARIO_3, {"SCENARIO-3", [?SC_ITEM_PUT_OBJ,
+                                    ?SC_ITEM_DETACH_NODE_1,
+                                    ?SC_ITEM_ATTACH_NODE_1,
+                                    ?SC_ITEM_WATCH_MQ,
+                                    ?SC_ITEM_GET_OBJ,
+                                    ?SC_ITEM_CHECK_REPLICAS
+                                   ]}).
+
+%% attach a node > rebalance
+-define(SCENARIO_4, {"SCENARIO-4", [?SC_ITEM_ATTACH_NODE,
                                     ?SC_ITEM_WATCH_MQ,
                                     ?SC_ITEM_CHECK_REPLICAS,
                                     ?SC_ITEM_GET_OBJ,
@@ -166,7 +182,8 @@
                                     ?SC_ITEM_GET_OBJ
                                    ]}).
 
--define(SCENARIO_4, {"SCENARIO-4", [?SC_ITEM_PUT_OBJ,
+%% suspend > resume > resume node
+-define(SCENARIO_5, {"SCENARIO-5", [?SC_ITEM_PUT_OBJ,
                                     ?SC_ITEM_SUSPEND_NODE,
                                     ?SC_ITEM_STOP_NODE,
                                     ?SC_ITEM_GET_OBJ,
@@ -177,7 +194,8 @@
                                     ?SC_ITEM_GET_OBJ
                                    ]}).
 
--define(SCENARIO_5, {"SCENARIO-5", [?SC_ITEM_REMOVE_AVS,
+%% recover node
+-define(SCENARIO_6, {"SCENARIO-6", [?SC_ITEM_REMOVE_AVS,
                                     ?SC_ITEM_RECOVER_NODE,
                                     ?SC_ITEM_WATCH_MQ,
                                     ?SC_ITEM_CHECK_REPLICAS,

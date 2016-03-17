@@ -27,11 +27,13 @@
 
 -export([run/2]).
 
--define(ATTACH_NODE,  'storage_3@127.0.0.1').
--define(DETACH_NODE,  'storage_3@127.0.0.1').
--define(SUSPEND_NODE, 'storage_1@127.0.0.1').
--define(RESUME_NODE,  'storage_1@127.0.0.1').
--define(RECOVER_NODE, 'storage_2@127.0.0.1').
+-define(ATTACH_NODE,   'storage_3@127.0.0.1').
+-define(DETACH_NODE,   'storage_3@127.0.0.1').
+-define(DETACH_NODE_1, 'storage_0@127.0.0.1').
+-define(SUSPEND_NODE,  'storage_1@127.0.0.1').
+-define(RESUME_NODE,   'storage_1@127.0.0.1').
+-define(RECOVER_NODE,  'storage_2@127.0.0.1').
+-define(TAKEOVER_NODE, 'storage_4@127.0.0.1').
 
 
 %% @doc Execute tests
@@ -66,6 +68,14 @@ run(?F_CHECK_REPLICAS, S3Conf) ->
 %% Operate a node
 run(?F_ATTACH_NODE,_S3Conf) ->
     ok = attach_node(?ATTACH_NODE),
+    ok;
+run(?F_DETACH_NODE_FOR_TAKEOVER,_S3Conf) ->
+    ok = detach_node(?DETACH_NODE_1),
+    ok;
+run(?F_ATTACH_NODE_FOR_TAKEOVER,_S3Conf) ->
+    Node = ?TAKEOVER_NODE,
+    ok = start_node(Node),
+    ok = attach_node(Node),
     ok;
 run(?F_DETACH_NODE,_S3Conf) ->
     ok = detach_node(?DETACH_NODE),

@@ -102,6 +102,7 @@ main(Args) ->
             ok = leofs_test_scenario:run(?SCENARIO_3, S3Conf_1),
             ok = leofs_test_scenario:run(?SCENARIO_4, S3Conf_1),
             ok = leofs_test_scenario:run(?SCENARIO_5, S3Conf_1),
+            ok = leofs_test_scenario:run(?SCENARIO_6, S3Conf_1),
             EndDateTime = leo_date:now(),
             ?msg_finished(EndDateTime - StartDateTime);
         Test ->
