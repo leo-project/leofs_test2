@@ -69,13 +69,22 @@ run(?F_CHECK_REPLICAS, S3Conf) ->
 run(?F_ATTACH_NODE,_S3Conf) ->
     ok = attach_node(?ATTACH_NODE),
     ok;
-run(?F_DETACH_NODE_FOR_TAKEOVER,_S3Conf) ->
-    ok = detach_node(?DETACH_NODE_1),
-    ok;
-run(?F_ATTACH_NODE_FOR_TAKEOVER,_S3Conf) ->
-    Node = ?TAKEOVER_NODE,
-    ok = start_node(Node),
-    ok = attach_node(Node),
+run(?F_TAKEOVER,_S3Conf) ->
+    DetachedNode = ?DETACH_NODE_1,
+    case rpc:call(?env_manager(), leo_manager_api,
+                  detach, [DetachedNode]) of
+        ok ->
+            ok = stop_node(DetachedNode),
+
+            Node = ?TAKEOVER_NODE,
+            ok = start_node(Node),
+            timer:sleep(timer:seconds(10)),
+            ok = attach_node_1(Node, 0),
+            ok;
+        _Error ->
+            ?msg_error(["Could not detach the node:", DetachedNode]),
+            halt()
+    end,
     ok;
 run(?F_DETACH_NODE,_S3Conf) ->
     ok = detach_node(?DETACH_NODE),
