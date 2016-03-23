@@ -190,7 +190,8 @@
                                    ]}).
 
 %% attach a node > rebalance
--define(SCENARIO_5, {"SCENARIO-5", [?SC_ITEM_ATTACH_NODE,
+-define(SCENARIO_5, {"SCENARIO-5", [?SC_ITEM_PUT_OBJ,
+                                    ?SC_ITEM_ATTACH_NODE,
                                     ?SC_ITEM_WATCH_MQ,
                                     ?SC_ITEM_GET_OBJ,
                                     ?SC_ITEM_CHECK_REPLICAS,
@@ -201,11 +202,12 @@
                                    ]}).
 
 %% recover node
--define(SCENARIO_6, {"SCENARIO-6", [?SC_ITEM_REMOVE_AVS,
+-define(SCENARIO_6, {"SCENARIO-6", [?SC_ITEM_PUT_OBJ,
+                                    ?SC_ITEM_REMOVE_AVS,
                                     ?SC_ITEM_RECOVER_NODE,
                                     ?SC_ITEM_WATCH_MQ,
-                                    ?SC_ITEM_CHECK_REPLICAS,
-                                    ?SC_ITEM_GET_OBJ
+                                    ?SC_ITEM_GET_OBJ,
+                                    ?SC_ITEM_CHECK_REPLICAS
                                    ]}).
 
 %% @doc Nodes

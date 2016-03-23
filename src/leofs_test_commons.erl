@@ -435,7 +435,28 @@ attach_node_1(Node, Times) ->
 detach_node(Node) ->
     case rpc:call(?env_manager(), leo_manager_api, detach, [Node]) of
         ok ->
+            %% Stop the node
             ok = stop_node(Node),
+
+            %% remove the current data
+            timer:sleep(timer:seconds(10)),
+            LeoFSDir = ?env_leofs_dir(),
+            Path_2 = filename:join([LeoFSDir, ?node_to_avs_dir(Node)]),
+            case filelib:is_dir(Path_2) of
+                true ->
+                    case (string:str(Path_2, "avs") > 0) of
+                        true ->
+                            [] = os:cmd("rm -rf " ++ Path_2),
+                            timer:sleep(timer:seconds(3)),
+                            ok;
+                        false ->
+                            ok
+                    end;
+                false ->
+                    ok
+            end,
+
+            %% Execute the rebalance-command
             rebalance();
         _Error ->
             ?msg_error(["Could not detach the node:", Node]),
@@ -524,8 +545,9 @@ start_node(Node) ->
 %% @doc Stop the node
 %% @private
 stop_node(Node) ->
-    Path = filename:join([?env_leofs_dir(), ?node_to_path(Node)]),
-    os:cmd(Path ++ " stop"),
+    LeoFSDir = ?env_leofs_dir(),
+    Path_1 = filename:join([LeoFSDir, ?node_to_path(Node)]),
+    os:cmd(Path_1 ++ " stop"),
     ok.
 
 
