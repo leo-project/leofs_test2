@@ -44,6 +44,10 @@ run(?F_PUT_OBJ, S3Conf) ->
     Keys = ?env_keys(),
     ok = put_object(S3Conf, Keys),
     ok;
+run(?F_PUT_LARGE_OBJ, S3Conf) ->
+    Keys = ?env_large_obj_keys(),
+    ok = put_large_object(S3Conf, Keys),
+    ok;
 run(?F_PUT_ZERO_BYTE_OBJ, S3Conf) ->
     Keys = ?env_keys(),
     ok = put_zero_byte_object(S3Conf, Keys),
@@ -51,6 +55,10 @@ run(?F_PUT_ZERO_BYTE_OBJ, S3Conf) ->
 run(?F_GET_OBJ, S3Conf) ->
     Keys = ?env_keys(),
     ok = get_object(S3Conf, Keys, 200),
+    ok;
+run(?F_GET_LARGE_OBJ, S3Conf) ->
+    Keys = ?env_large_obj_keys(),
+    ok = get_large_object(S3Conf, Keys),
     ok;
 run(?F_GET_OBJ_NOT_FOUND, S3Conf) ->
     Keys = gen_key_by_one_percent(?env_keys()),
@@ -141,6 +149,11 @@ gen_key_by_one_percent(Keys) ->
 gen_key(Index) ->
     lists:append(["test/", integer_to_list(Index)]).
 
+%% @doc Generate a key by index for large-size objects
+%% @private
+gen_key_for_large_obj(Index) ->
+    lists:append(["test/large/", integer_to_list(Index)]).
+
 
 %% @doc Output progress
 %% @private
@@ -222,6 +235,25 @@ put_object(Conf, Keys) ->
     put_object_1(Conf, undefined, undefined, 1, Keys).
 
 
+%% @doc Put large size objects
+%% @private
+put_large_object(_,0) ->
+    ok;
+put_large_object(Conf, Keys) ->
+    Key = gen_key_for_large_obj(Keys),
+    Val = crypto:rand_bytes(3 * 1024 * 1024),
+
+    case catch erlcloud_s3:put_object(?env_bucket(), Key, Val, [], Conf) of
+        {'EXIT', Cause} ->
+            ?debugVal(Cause),
+            timer:sleep(timer:seconds(3)),
+            put_large_object(Conf, Keys);
+        _ ->
+            put_large_object(Conf, Keys - 1)
+    end.
+
+
+%% @private
 put_zero_byte_object(_,0) ->
     ?msg_progress_finished(),
     ok;
@@ -306,6 +338,21 @@ get_object_1(Conf, From, Ref, Start, End) ->
             erlang:error(Cause);
         _ ->
             get_object_1(Conf, From, Ref, Start + 1, End)
+    end.
+
+
+%% @doc Retrieve a large size object
+%% @private
+get_large_object(_,0) ->
+    ok;
+get_large_object(Conf, Keys) ->
+    Key = gen_key_for_large_obj(Keys),
+
+    case catch erlcloud_s3:get_object(?env_bucket(), Key, Conf) of
+        {'EXIT', Cause} ->
+            erlang:error(Cause);
+        _ ->
+            get_large_object(Conf, Keys - 1)
     end.
 
 

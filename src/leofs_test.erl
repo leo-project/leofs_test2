@@ -103,6 +103,8 @@ main(Args) ->
             ok = leofs_test_scenario:run(?SCENARIO_4, S3Conf_1),
             ok = leofs_test_scenario:run(?SCENARIO_5, S3Conf_1),
             ok = leofs_test_scenario:run(?SCENARIO_6, S3Conf_1),
+            ok = leofs_test_scenario:run(?SCENARIO_7, S3Conf_1),
+
             EndDateTime = leo_date:now(),
             ?msg_finished(EndDateTime - StartDateTime);
         Test ->
@@ -148,10 +150,10 @@ version() ->
 %% @doc Parse getopt options
 parse_args(RawArgs) ->
     OptSpecList = option_spec_list(),
-        case getopt:parse(OptSpecList, RawArgs) of
+    case getopt:parse(OptSpecList, RawArgs) of
         {ok, Args} ->
-                Args;
-            {error, {_Reason, _Data}} ->
-                help(),
-                halt(1)
-        end.
+            Args;
+        {error, {_Reason, _Data}} ->
+            help(),
+            halt(1)
+    end.

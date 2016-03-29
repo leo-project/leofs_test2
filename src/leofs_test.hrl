@@ -31,6 +31,7 @@
 -define(PROP_COOKIE,    'cookie').
 -define(PROP_BUCKET,    'bucket').
 -define(PROP_KEYS,      'keys').
+-define(PROP_LARGE_OBJ_KEYS, 'large_obj_keys').
 -define(PROP_LEOFS_DIR, 'leofs_dir').
 
 -define(BUCKET,  "backup").
@@ -39,6 +40,7 @@
 -define(COOKIE, "401321b4").
 -define(NUM_OF_REPLICAS, 2).
 -define(NUM_OF_KEYS,    10000).
+-define(NUM_OF_LARGE_OBJ_KEYS, 100).
 -define(UNIT_OF_PARTION, 1000).
 -define(THRESHOLD_ERROR_TIMES, 3).
 -define(DEF_TIMEOUT, timer:seconds(300)).
@@ -66,6 +68,14 @@
                 _EnvKeys
         end).
 
+-define(env_large_obj_keys(),
+        case application:get_env(?APP, ?PROP_LARGE_OBJ_KEYS) of
+            undefined ->
+                ?NUM_OF_LARGE_OBJ_KEYS;
+            {ok, _EnvKeys} ->
+                _EnvKeys
+        end).
+
 -define(env_bucket(),
         case application:get_env(?APP, ?PROP_BUCKET) of
             undefined ->
@@ -85,9 +95,11 @@
 
 %% TEST Scenatios:
 -define(F_PUT_OBJ,           put_objects).
+-define(F_PUT_LARGE_OBJ,     put_large_objects).
 -define(F_PUT_ZERO_BYTE_OBJ, put_zero_byte_objects).
 -define(F_GET_OBJ,           get_objects).
 -define(F_GET_OBJ_NOT_FOUND, get_objects_not_found).
+-define(F_GET_LARGE_OBJ,     get_large_objects).
 -define(F_DEL_OBJ,           del_objects).
 -define(F_CREATE_BUCKET,     create_bucket).
 -define(F_CHECK_REPLICAS,    check_redundancies).
@@ -105,9 +117,11 @@
 -define(F_RECOVER_NODE,      recover_node).
 
 -define(SC_ITEM_PUT_OBJ,           {?F_PUT_OBJ,           "put objects"}).
+-define(SC_ITEM_PUT_LARGE_OBJ,     {?F_PUT_LARGE_OBJ,     "put large objects"}).
 -define(SC_ITEM_PUT_ZERO_BYTE_OBJ, {?F_PUT_ZERO_BYTE_OBJ, "put zero byte objects"}).
 -define(SC_ITEM_GET_OBJ,           {?F_GET_OBJ,           "get objects"}).
 -define(SC_ITEM_GET_OBJ_NOT_FOUND, {?F_GET_OBJ_NOT_FOUND, "get objects_not_found"}).
+-define(SC_ITEM_GET_LARGE_OBJ,     {?F_GET_LARGE_OBJ,     "get large objects"}).
 -define(SC_ITEM_DEL_OBJ,           {?F_DEL_OBJ,        "remove objects"}).
 -define(SC_ITEM_CREATE_BUCKET,     {?F_CREATE_BUCKET,  "create a bucket"}).
 -define(SC_ITEM_CHECK_REPLICAS,    {?F_CHECK_REPLICAS, "check redundancies of replicas"}).
@@ -208,6 +222,12 @@
                                     ?SC_ITEM_WATCH_MQ,
                                     ?SC_ITEM_GET_OBJ,
                                     ?SC_ITEM_CHECK_REPLICAS
+                                   ]}).
+
+%% recover node
+-define(SCENARIO_7, {"SCENARIO-7", [?SC_ITEM_PUT_LARGE_OBJ,
+                                    ?SC_ITEM_GET_LARGE_OBJ,
+                                    ?SC_ITEM_GET_LARGE_OBJ
                                    ]}).
 
 %% @doc Nodes
