@@ -63,6 +63,9 @@ main(Args) ->
     Manager = leo_misc:get_value(?PROP_MANAGER, Opts, ?MANAGER_NODE),
     ok = application:set_env(?APP, ?PROP_MANAGER, list_to_atom(Manager)),
 
+    Scenario = leo_misc:get_value(?PROP_SCENARIO, Opts, all),
+    ok = application:set_env(?APP, ?PROP_SCENARIO, Scenario),
+
     %% Load/Start apps
     ok = code:add_paths(["ebin",
                          "deps/erlcloud/ebin",
@@ -97,12 +100,7 @@ main(Args) ->
             %% Execute scenarios:
             ?msg_start_scenario(),
             StartDateTime = leo_date:now(),
-            ok = leofs_test_scenario:run(?SCENARIO_1, S3Conf_1),
-            ok = leofs_test_scenario:run(?SCENARIO_2, S3Conf_1),
-            ok = leofs_test_scenario:run(?SCENARIO_3, S3Conf_1),
-            ok = leofs_test_scenario:run(?SCENARIO_4, S3Conf_1),
-            ok = leofs_test_scenario:run(?SCENARIO_5, S3Conf_1),
-            ok = leofs_test_scenario:run(?SCENARIO_6, S3Conf_1),
+            run(Scenario, S3Conf_1),
             EndDateTime = leo_date:now(),
             ?msg_finished(EndDateTime - StartDateTime);
         Test ->
@@ -122,6 +120,28 @@ main(Args) ->
 
 %% @doc
 %% @private
+run('1', S3Conf) ->
+    ok = leofs_test_scenario:run(?SCENARIO_1, S3Conf);
+run('2', S3Conf) ->
+    ok = leofs_test_scenario:run(?SCENARIO_2, S3Conf);
+run('3', S3Conf) ->
+    ok = leofs_test_scenario:run(?SCENARIO_3, S3Conf);
+run('4', S3Conf) ->
+    ok = leofs_test_scenario:run(?SCENARIO_4, S3Conf);
+run('5', S3Conf) ->
+    ok = leofs_test_scenario:run(?SCENARIO_5, S3Conf);
+run('6', S3Conf) ->
+    ok = leofs_test_scenario:run(?SCENARIO_6, S3Conf);
+run('all', S3Conf) ->
+    ok = leofs_test_scenario:run(?SCENARIO_1, S3Conf),
+    ok = leofs_test_scenario:run(?SCENARIO_2, S3Conf),
+    ok = leofs_test_scenario:run(?SCENARIO_3, S3Conf),
+    ok = leofs_test_scenario:run(?SCENARIO_4, S3Conf),
+    ok = leofs_test_scenario:run(?SCENARIO_5, S3Conf),
+    ok = leofs_test_scenario:run(?SCENARIO_6, S3Conf);
+run(Scenario, _S3Conf) ->
+    io:format(" The specified scenario [~s] not found.~n", [Scenario]).
+
 option_spec_list() ->
     [
      %% {Name, ShortOpt, LongOpt, ArgSpec, HelpMsg}
@@ -130,6 +150,7 @@ option_spec_list() ->
      {leofs_dir,$d, "dir",      string,    "LeoFS directory"},
      {keys,     $k, "keys",     integer,   "Total number of keys"},
      {manager,  $m, "manager",  string,    "LeoFS Manager"},
+     {scenario, $s, "scenario", atom,      "Test Scenario"},
      {test,     $t, "test",     atom,      "Execute a test"},
      %% misc
      {help,     $h, "help",     undefined, "Show the program options"},
