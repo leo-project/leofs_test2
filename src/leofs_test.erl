@@ -66,6 +66,9 @@ main(Args) ->
     Scenario = leo_misc:get_value(?PROP_SCENARIO, Opts, all),
     ok = application:set_env(?APP, ?PROP_SCENARIO, Scenario),
 
+    NeedLaunch = leo_misc:get_value(?PROP_LAUNCH, Opts, false),
+    ok = application:set_env(?APP, ?PROP_LAUNCH, NeedLaunch),
+
     %% Load/Start apps
     ok = code:add_paths(["ebin",
                          "deps/erlcloud/ebin",
@@ -90,8 +93,10 @@ main(Args) ->
     case ?env_leofs_dir() of
         [] ->
             void;
-        LeoFSDir ->
-            ok = leofs_test_launcher:run(LeoFSDir)
+        LeoFSDir when NeedLaunch =:= true ->
+            ok = leofs_test_launcher:run(LeoFSDir);
+        _ ->
+            void
     end,
 
     S3Conf_1 = S3Conf#aws_config{s3_scheme = "http://"},
@@ -149,6 +154,7 @@ option_spec_list() ->
      {cookie,   $c, "cookie",   string,    "Distributed-cookie for communication with LeoFS"},
      {leofs_dir,$d, "dir",      string,    "LeoFS directory"},
      {keys,     $k, "keys",     integer,   "Total number of keys"},
+     {launch,   $l, "launch",   boolean,   "Launch the LeoFS cluster"},
      {manager,  $m, "manager",  string,    "LeoFS Manager"},
      {scenario, $s, "scenario", atom,      "Test Scenario"},
      {test,     $t, "test",     atom,      "Execute a test"},

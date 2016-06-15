@@ -33,6 +33,7 @@
 -define(PROP_KEYS,      'keys').
 -define(PROP_LEOFS_DIR, 'leofs_dir').
 -define(PROP_SCENARIO,  'scenario').
+-define(PROP_LAUNCH,    'launch').
 
 -define(BUCKET,  "backup").
 -define(NODE, 'integrator@127.0.0.1').
