@@ -72,6 +72,8 @@ main(Args) ->
     %% Load/Start apps
     ok = code:add_paths(["ebin",
                          "deps/erlcloud/ebin",
+                         "deps/lhttpc/ebin",
+                         "deps/eini/ebin",
                          "deps/jsx/ebin",
                          "deps/getopt/ebin",
                          "deps/leo_commons/ebin"
@@ -81,6 +83,7 @@ main(Args) ->
     ok = application:start(public_key),
     ok = application:start(ssl),
     ok = application:start(xmerl),
+    lhttpc:start(),
 
     %% Launch erlcloud
     ok = erlcloud:start(),
@@ -99,7 +102,7 @@ main(Args) ->
             void
     end,
 
-    S3Conf_1 = S3Conf#aws_config{s3_scheme = "http://"},
+    S3Conf_1 = S3Conf#aws_config{s3_scheme = "http://", s3_bucket_after_host = true},
     case leo_misc:get_value('test', Opts, not_found) of
         not_found ->
             %% Execute scenarios:
