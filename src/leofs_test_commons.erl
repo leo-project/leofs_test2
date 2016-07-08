@@ -363,11 +363,17 @@ check_redundancies_1(Conf, From, Ref, Start, End) ->
 
 %% @private
 check_redundancies_2(Key) ->
+    Replicas = application:get_env(?APP, ?PROP_REPLICAS, ?NUM_OF_REPLICAS),
     case rpc:call(?env_manager(), leo_manager_api, whereis, [[Key], true]) of
-        {ok, RetL} when length(RetL) == ?NUM_OF_REPLICAS ->
-            L1 = lists:nth(1, RetL),
-            L2 = lists:nth(2, RetL),
-            ok = compare_1(Key, L1, L2);
+        {ok, RetL} when length(RetL) == Replicas ->
+            case Replicas > 1 of
+                true ->
+                    L1 = lists:nth(1, RetL),
+                    L2 = lists:nth(2, RetL),
+                    ok = compare_1(Key, L1, L2);
+                false ->
+                    ok
+            end;
         {ok,_RetL} ->
             io:format("[ERROR] ~s, ~w~n", [Key, inconsistent_object]);
         Other ->

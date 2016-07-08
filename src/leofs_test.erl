@@ -69,6 +69,15 @@ main(Args) ->
     NeedLaunch = leo_misc:get_value(?PROP_LAUNCH, Opts, false),
     ok = application:set_env(?APP, ?PROP_LAUNCH, NeedLaunch),
 
+    GwHost = leo_misc:get_value(?PROP_GW_HOST, Opts, ?S3_HOST),
+    ok = application:set_env(?APP, ?PROP_GW_HOST, GwHost),
+
+    GwPort = leo_misc:get_value(?PROP_GW_PORT, Opts, ?S3_PORT),
+    ok = application:set_env(?APP, ?PROP_GW_PORT, GwPort),
+
+    Replicas = leo_misc:get_value(?PROP_REPLICAS, Opts, ?NUM_OF_REPLICAS),
+    ok = application:set_env(?APP, ?PROP_REPLICAS, Replicas),
+
     %% Load/Start apps
     ok = code:add_paths(["ebin",
                          "deps/erlcloud/ebin",
@@ -89,8 +98,8 @@ main(Args) ->
     ok = erlcloud:start(),
     S3Conf = erlcloud_s3:new(?S3_ACCESS_KEY,
                              ?S3_SECRET_KEY,
-                             ?S3_HOST,
-                             ?S3_PORT),
+                             GwHost,
+                             GwPort),
 
     %% Launch LeoFS
     case ?env_leofs_dir() of
@@ -156,9 +165,12 @@ option_spec_list() ->
      {bucket,   $b, "bucket",   string,    "Target a bucket"},
      {cookie,   $c, "cookie",   string,    "Distributed-cookie for communication with LeoFS"},
      {leofs_dir,$d, "dir",      string,    "LeoFS directory"},
+     {gw_host,  $g, "gw_host",  string,    "leo_gateway host"},
+     {gw_port,  $p, "gw_port",  integer,   "leo_gateway port"},
      {keys,     $k, "keys",     integer,   "Total number of keys"},
      {launch,   $l, "launch",   boolean,   "Launch the LeoFS cluster"},
      {manager,  $m, "manager",  string,    "LeoFS Manager"},
+     {replicas, $r, "replicas", integer,   "# of replicas"},
      {scenario, $s, "scenario", atom,      "Test Scenario"},
      {test,     $t, "test",     atom,      "Execute a test"},
      %% misc

@@ -34,6 +34,9 @@
 -define(PROP_LEOFS_DIR, 'leofs_dir').
 -define(PROP_SCENARIO,  'scenario').
 -define(PROP_LAUNCH,    'launch').
+-define(PROP_GW_HOST,   'gw_host').
+-define(PROP_GW_PORT,   'gw_port').
+-define(PROP_REPLICAS,  'replicas').
 
 -define(BUCKET,  "backup").
 -define(NODE, 'integrator@127.0.0.1').
