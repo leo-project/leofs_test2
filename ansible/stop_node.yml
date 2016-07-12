@@ -1,0 +1,19 @@
+---
+
+## Start LeoFS
+- hosts: localhost
+  gather_facts: False
+  name: Config Admin Tool
+  roles:
+      - { role: controller }
+
+- hosts: leo_storage
+  name: Stop LeoStorages
+  roles:
+      - { role: leo_storage, control_leofs: "stop" }
+
+- hosts: localhost
+  gather_facts: False
+  tasks:
+    - name: Wait for LeoStorages
+      pause: seconds=10
