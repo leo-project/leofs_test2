@@ -28,7 +28,7 @@
 -export([run/2]).
 
 -define(ATTACH_NODE,   'storage_3@127.0.0.1').
--define(DETACH_NODE,   'storage_3@127.0.0.1').
+-define(DETACH_NODE,   'S2@192.168.0.153').
 -define(DETACH_NODE_1, 'storage_0@127.0.0.1').
 -define(SUSPEND_NODE,  'storage_1@127.0.0.1').
 -define(RESUME_NODE,   'storage_1@127.0.0.1').
@@ -441,29 +441,7 @@ attach_node_1(Node, Times) ->
 detach_node(Node) ->
     case rpc:call(?env_manager(), leo_manager_api, detach, [Node]) of
         ok ->
-            %% Stop the node
-            ok = stop_node(Node),
-
-            %% remove the current data
-            timer:sleep(timer:seconds(10)),
-            LeoFSDir = ?env_leofs_dir(),
-            Path_2 = filename:join([LeoFSDir, ?node_to_avs_dir(Node)]),
-            case filelib:is_dir(Path_2) of
-                true ->
-                    case (string:str(Path_2, "avs") > 0) of
-                        true ->
-                            [] = os:cmd("rm -rf " ++ Path_2),
-                            timer:sleep(timer:seconds(3)),
-                            ok;
-                        false ->
-                            ok
-                    end;
-                false ->
-                    ok
-            end,
-
-            %% Execute the rebalance-command
-            rebalance();
+            control_cluster(detach);
         _Error ->
             ?msg_error(["Could not detach the node:", Node]),
             halt()
@@ -730,3 +708,34 @@ recover_node_1(Node, Times) ->
         Other ->
             Other
     end.
+
+%% @doc Control the cluster via ansible
+%% @private
+control_cluster_via_ansible(Inventory, PlayBook) ->
+    {ok, WorkDir} = file:get_cwd(),
+    AnsibleDir = filename:join([WorkDir, "leofs_ansible"]),
+    InventoryPath = filename:join([AnsibleDir, Inventory]),
+    PlayBookPath = filename:join([AnsibleDir, PlayBook]),
+    AnsibleKey = filename:join([AnsibleDir, "ansible_key"]),
+    User = application:get_env(?APP, ?PROP_ANSIBLE_USER, ?ANSIBLE_USER),
+    Cmd = lists:flatten(io_lib:format("ansible-playbook -i ~s -u ~s --private-key ~s -b ~s", [InventoryPath,  User, AnsibleKey, PlayBookPath])),
+    % @debug
+    io:format(user, "[debug] Cmd: ~s~n", [Cmd]),
+    Ret = os:cmd(Cmd),
+    io:format(user, "[debug] Result: ~s~n", [Ret]),
+    ok.
+
+control_cluster(detach) ->
+    control_cluster_via_ansible("detach_attach_node.hosts", "detach_node.yml");
+control_cluster(attach) ->
+    control_cluster_via_ansible("detach_attach_node.hosts", "attach_node.yml");
+control_cluster(remove_avs) ->
+    control_cluster_via_ansible("remove_avs.hosts", "remove_avs.yml");
+control_cluster(stop) ->
+    control_cluster_via_ansible("start_stop_node.hosts", "stop_node.yml");
+control_cluster(start) ->
+    control_cluster_via_ansible("start_stop_node.hosts", "start_node.yml");
+control_cluster(takeover) ->
+    control_cluster_via_ansible("takeover_node.hosts", "takeover_node.yml");
+control_cluster(UnknownOps) ->
+    erlang:error("invalid a cluster operation: " ++ UnknownOps).

@@ -3,7 +3,7 @@
 leofs_version=1.2.22
 build_temp_path="/tmp/leofs_builder"
 build_install_path="/tmp/"
-source="build"
+source="package"
 
 [builder]
 192.168.0.10
@@ -17,7 +17,7 @@ source="build"
 192.168.0.101
 
 [leo_storage]
-192.168.0.152 leofs_module_nodename=S2@192.168.0.152
+192.168.0.153 leofs_module_nodename=S2@192.168.0.153
 
 [leofs_nodes:children]
 leo_storage
