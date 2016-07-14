@@ -28,7 +28,6 @@
 -export([run/2]).
 
 -define(ATTACH_NODE,   'S2@192.168.0.153').
--define(DETACH_NODE,   'S2@192.168.0.153').
 -define(DETACH_NODE_1, 'S0@192.168.0.151').
 -define(SUSPEND_NODE,  'S1@192.168.0.152').
 -define(RESUME_NODE,   'S1@192.168.0.152').
@@ -82,7 +81,7 @@ run(?F_TAKEOVER,_S3Conf) ->
     end,
     ok;
 run(?F_DETACH_NODE,_S3Conf) ->
-    ok = detach_node(?DETACH_NODE),
+    control_cluster(detach),
     ok;
 run(?F_SUSPEND_NODE,_S3Conf) ->
     ok = suspend_node(?SUSPEND_NODE),
@@ -402,16 +401,6 @@ compare_2(Index, Key, L1, L2) ->
             io:format("[ERROR] ~s, ~p, ~p~n", [Key, L1, L2])
     end,
     compare_2(Index + 1, Key, L1, L2).
-
-%% @doc Detach the node
-detach_node(Node) ->
-    case rpc:call(?env_manager(), leo_manager_api, detach, [Node]) of
-        ok ->
-            control_cluster(detach);
-        _Error ->
-            ?msg_error(["Could not detach the node:", Node]),
-            halt()
-    end.
 
 
 %% @doc Suspend the node
