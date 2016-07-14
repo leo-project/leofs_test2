@@ -27,13 +27,13 @@
 
 -export([run/2]).
 
--define(ATTACH_NODE,   'storage_3@127.0.0.1').
+-define(ATTACH_NODE,   'S2@192.168.0.153').
 -define(DETACH_NODE,   'S2@192.168.0.153').
--define(DETACH_NODE_1, 'storage_0@127.0.0.1').
--define(SUSPEND_NODE,  'storage_1@127.0.0.1').
--define(RESUME_NODE,   'storage_1@127.0.0.1').
--define(RECOVER_NODE,  'storage_2@127.0.0.1').
--define(TAKEOVER_NODE, 'storage_4@127.0.0.1').
+-define(DETACH_NODE_1, 'S0@192.168.0.151').
+-define(SUSPEND_NODE,  'S1@192.168.0.152').
+-define(RESUME_NODE,   'S1@192.168.0.152').
+-define(RECOVER_NODE,  'S3@192.168.0.154').
+-define(TAKEOVER_NODE, 'S4@192.168.0.155').
 
 
 %% @doc Execute tests
@@ -67,19 +67,14 @@ run(?F_CHECK_REPLICAS, S3Conf) ->
 
 %% Operate a node
 run(?F_ATTACH_NODE,_S3Conf) ->
-    ok = attach_node(?ATTACH_NODE),
+    control_cluster(attach),
     ok;
 run(?F_TAKEOVER,_S3Conf) ->
     DetachedNode = ?DETACH_NODE_1,
     case rpc:call(?env_manager(), leo_manager_api,
                   detach, [DetachedNode]) of
         ok ->
-            ok = stop_node(DetachedNode),
-
-            Node = ?TAKEOVER_NODE,
-            ok = start_node(Node),
-            timer:sleep(timer:seconds(10)),
-            ok = attach_node_1(Node, 0),
+            control_cluster(takeover),
             ok;
         _Error ->
             ?msg_error(["Could not detach the node:", DetachedNode]),
@@ -97,11 +92,10 @@ run(?F_RESUME_NODE,_S3Conf) ->
     ok = resume_node(?RESUME_NODE),
     ok;
 run(?F_START_NODE,_S3Conf) ->
-    ok = start_node(?SUSPEND_NODE),
+    control_cluster(start),
     ok;
 run(?F_STOP_NODE,_S3Conf) ->
-    ok = stop_node(?SUSPEND_NODE),
-    timer:sleep(timer:seconds(15)),
+    control_cluster(stop),
     ok;
 run(?F_WATCH_MQ,_S3Conf) ->
     ok = watch_mq(),
@@ -113,7 +107,7 @@ run(?F_COMPACTION,_S3Conf) ->
     ok = compaction(),
     ok;
 run(?F_REMOVE_AVS,_S3Conf) ->
-    ok = remove_avs(?RECOVER_NODE),
+    control_cluster(remove_avs),
     ok;
 run(?F_RECOVER_NODE,_S3Conf) ->
     ok = recover_node(?RECOVER_NODE),
@@ -409,34 +403,6 @@ compare_2(Index, Key, L1, L2) ->
     end,
     compare_2(Index + 1, Key, L1, L2).
 
-
-%% @doc Attach the node
-%% @private
-attach_node(Node) ->
-    case rpc:call(?env_manager(), leo_redundant_manager_api,
-                  get_member_by_node, [Node]) of
-        {error, not_found} ->
-            ok = start_node(Node),
-            attach_node_1(Node, 0);
-        _ ->
-            ?msg_error(["Could not attach the node:", Node]),
-            halt()
-    end.
-
-attach_node_1(Node, ?THRESHOLD_ERROR_TIMES) ->
-    ?msg_error(["Could not attach the node:", Node]),
-    halt();
-attach_node_1(Node, Times) ->
-    case rpc:call(?env_manager(), leo_redundant_manager_api,
-                  get_member_by_node, [Node]) of
-        {ok, #member{state = ?STATE_ATTACHED}} ->
-            rebalance();
-        _ ->
-            timer:sleep(timer:seconds(5)),
-            attach_node_1(Node, Times + 1)
-    end.
-
-
 %% @doc Detach the node
 detach_node(Node) ->
     case rpc:call(?env_manager(), leo_manager_api, detach, [Node]) of
@@ -444,18 +410,6 @@ detach_node(Node) ->
             control_cluster(detach);
         _Error ->
             ?msg_error(["Could not detach the node:", Node]),
-            halt()
-    end.
-
-
-%% @doc Execute rebalance of data
-%% @private
-rebalance() ->
-    case rpc:call(?env_manager(), leo_manager_api, rebalance, [null]) of
-        ok ->
-            ok;
-        _Error ->
-            ?msg_error("Fail rebalance (detach-node)"),
             halt()
     end.
 
@@ -516,23 +470,6 @@ check_state_of_node(Node, State) ->
         Other ->
             Other
     end.
-
-
-%% @doc Stop the node
-%% @private
-start_node(Node) ->
-    Path = filename:join([?env_leofs_dir(), ?node_to_path(Node)]),
-    os:cmd(Path ++ " start"),
-    ok.
-
-
-%% @doc Stop the node
-%% @private
-stop_node(Node) ->
-    LeoFSDir = ?env_leofs_dir(),
-    Path_1 = filename:join([LeoFSDir, ?node_to_path(Node)]),
-    os:cmd(Path_1 ++ " stop"),
-    ok.
 
 
 %% @doc Retrieve storage nodes
@@ -644,32 +581,6 @@ compaction_2(Node) ->
             ?msg_error("data-compaction/data-diagnosis failure"),
             halt()
     end.
-
-
-%% @doc Remove avs of the node
-remove_avs(Node) ->
-    %% Stop the node
-    ok = stop_node(Node),
-
-    %% Remove avs of the node
-    timer:sleep(timer:seconds(3)),
-    Path = filename:join([?env_leofs_dir(), ?node_to_avs_dir(Node)]),
-    case filelib:is_dir(Path) of
-        true ->
-            case (string:str(Path, "avs") > 0) of
-                true ->
-                    [] = os:cmd("rm -rf " ++ Path),
-                    timer:sleep(timer:seconds(3)),
-
-                    %% Start the node
-                    start_node(Node);
-                false ->
-                    ok
-            end;
-        false ->
-            ok
-    end.
-
 
 %% @doc Recover data of the node
 %% @private

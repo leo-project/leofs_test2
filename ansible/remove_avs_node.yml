@@ -1,6 +1,0 @@
----
-
-- hosts: leo_storage
-  name: Purge LeoStorage
-  roles:
-      - { role: leo_storage, do_purge: true, do_forcekill: false }

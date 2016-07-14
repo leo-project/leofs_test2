@@ -1,6 +1,4 @@
 ---
-
-## Start LeoFS
 - hosts: localhost
   gather_facts: False
   name: Config Admin Tool
@@ -16,15 +14,20 @@
   gather_facts: False
   tasks:
     - name: Wait for LeoStorages
-      pause: seconds=10
+      pause: seconds=5
 
 - hosts: leo_storage
   name: Remove AVS Files LeoStorage
   roles:
       - { role: leo_storage, do_remove_avs: true }
 
+- hosts: leo_storage
+  name: Start LeoStorages
+  roles:
+      - { role: leo_storage, control_leofs: "start" }
+
 - hosts: localhost
   gather_facts: False
   tasks:
-      - name: Rebalance Node
-        command: ./leofs-adm rebalance
+    - name: Wait for LeoStorages
+      pause: seconds=5
