@@ -1,0 +1,20 @@
+---
+
+## Start LeoFS
+- hosts: localhost
+  gather_facts: False
+  name: Config Admin Tool
+  roles:
+      - { role: controller }
+
+- hosts: localhost
+  gather_facts: False
+  tasks:
+      - name: Suspend Node
+        command: ./leofs-adm resume {{ hostvars['192.168.0.152']['leofs_module_nodename'] }}
+
+- hosts: localhost
+  gather_facts: False
+  tasks:
+    - name: Wait for LeoStorages
+      pause: seconds=5

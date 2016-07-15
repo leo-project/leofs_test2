@@ -27,10 +27,7 @@
 
 -export([run/2]).
 
--define(SUSPEND_NODE,  'S1@192.168.0.152').
--define(RESUME_NODE,   'S1@192.168.0.152').
 -define(RECOVER_NODE,  'S3@192.168.0.154').
-
 
 %% @doc Execute tests
 run(?F_CREATE_BUCKET, S3Conf) ->
@@ -72,11 +69,10 @@ run(?F_DETACH_NODE,_S3Conf) ->
     control_cluster(detach),
     ok;
 run(?F_SUSPEND_NODE,_S3Conf) ->
-    ok = suspend_node(?SUSPEND_NODE),
-    timer:sleep(timer:seconds(15)),
+    control_cluster(suspend),
     ok;
 run(?F_RESUME_NODE,_S3Conf) ->
-    ok = resume_node(?RESUME_NODE),
+    control_cluster(resume),
     ok;
 run(?F_START_NODE,_S3Conf) ->
     control_cluster(start),
@@ -391,50 +387,6 @@ compare_2(Index, Key, L1, L2) ->
     compare_2(Index + 1, Key, L1, L2).
 
 
-%% @doc Suspend the node
-%% @private
-suspend_node(Node) ->
-    case rpc:call(?env_manager(), leo_manager_api, suspend, [Node]) of
-        ok ->
-            ok;
-        _Error ->
-            ?msg_error(["Could not suspend the node:", Node]),
-            halt()
-    end.
-
-
-%% @doc Resume the node
-%% @private
-resume_node(Node) ->
-    Manager = ?env_manager(),
-    case catch leo_misc:node_existence(Node) of
-        true ->
-            case rpc:call(Manager, leo_manager_api, resume, [Node]) of
-                ok ->
-                    resume_node_1(Node);
-                _Error ->
-                    ?msg_error(["Could not resume the node:", Node]),
-                    halt()
-            end;
-        _ ->
-            timer:sleep(timer:seconds(5)),
-            resume_node(Node)
-    end.
-
-%% @private
-resume_node_1(Node) ->
-    case check_state_of_node(Node, ?STATE_RUNNING) of
-        ok ->
-            ok;
-        {error, not_yet} ->
-            timer:sleep(timer:seconds(3)),
-            resume_node_1(Node);
-        _ ->
-            ?msg_error(["Could not resume the node:", Node]),
-            halt()
-    end.
-
-
 %% @doc check state of the node
 %% @private
 check_state_of_node(Node, State) ->
@@ -625,5 +577,9 @@ control_cluster(start) ->
     control_cluster_via_ansible("start_stop_node.hosts", "start_node.yml");
 control_cluster(takeover) ->
     control_cluster_via_ansible("takeover_node.hosts", "takeover_node.yml");
+control_cluster(suspend) ->
+    control_cluster_via_ansible("start_stop_node.hosts", "suspend_node.yml");
+control_cluster(resume) ->
+    control_cluster_via_ansible("start_stop_node.hosts", "resume_node.yml");
 control_cluster(UnknownOps) ->
     erlang:error("invalid a cluster operation: " ++ UnknownOps).
