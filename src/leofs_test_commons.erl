@@ -27,8 +27,6 @@
 
 -export([run/2]).
 
--define(RECOVER_NODE,  'S3@192.168.0.154').
-
 %% @doc Execute tests
 run(?F_CREATE_BUCKET, S3Conf) ->
     catch erlcloud_s3:create_bucket(?env_bucket(), S3Conf),
@@ -93,7 +91,7 @@ run(?F_REMOVE_AVS,_S3Conf) ->
     control_cluster(remove_avs),
     ok;
 run(?F_RECOVER_NODE,_S3Conf) ->
-    ok = recover_node(?RECOVER_NODE),
+    control_cluster(recover_node),
     ok;
 run(_F,_) ->
     ok.
@@ -387,20 +385,6 @@ compare_2(Index, Key, L1, L2) ->
     compare_2(Index + 1, Key, L1, L2).
 
 
-%% @doc check state of the node
-%% @private
-check_state_of_node(Node, State) ->
-    case rpc:call(?env_manager(), leo_redundant_manager_api,
-                  get_member_by_node, [Node]) of
-        {ok, #member{state = State}} ->
-            ok;
-        {ok, _NodeState} ->
-            {error, not_yet};
-        Other ->
-            Other
-    end.
-
-
 %% @doc Retrieve storage nodes
 %% @private
 get_storage_nodes() ->
@@ -511,44 +495,6 @@ compaction_2(Node) ->
             halt()
     end.
 
-%% @doc Recover data of the node
-%% @private
-recover_node(Node) ->
-    Ret = case recover_node_1(Node, 0) of
-              ok ->
-                  case rpc:call(?env_manager(), leo_manager_api,
-                                recover, ["node", Node, true]) of
-                      ok ->
-                          ok;
-                      Error ->
-                          Error
-                  end;
-              Error ->
-                  Error
-          end,
-
-    case Ret of
-        ok ->
-            ok;
-        _ ->
-            ?msg_error(["recover-node failure", Node]),
-            halt()
-    end.
-
-%% @private
-recover_node_1(_Node, ?THRESHOLD_ERROR_TIMES) ->
-    {error, over_threshold_error_times};
-recover_node_1(Node, Times) ->
-    case check_state_of_node(Node, ?STATE_RUNNING) of
-        ok ->
-            ok;
-        {error, not_yet} ->
-            timer:sleep(timer:seconds(10)),
-            recover_node_1(Node, Times + 1);
-        Other ->
-            Other
-    end.
-
 %% @doc Control the cluster via ansible
 %% @private
 control_cluster_via_ansible(Inventory, PlayBook) ->
@@ -581,5 +527,7 @@ control_cluster(suspend) ->
     control_cluster_via_ansible("start_stop_node.hosts", "suspend_node.yml");
 control_cluster(resume) ->
     control_cluster_via_ansible("start_stop_node.hosts", "resume_node.yml");
+control_cluster(recover_node) ->
+    control_cluster_via_ansible("remove_avs.hosts", "recover_node.yml");
 control_cluster(UnknownOps) ->
     erlang:error("invalid a cluster operation: " ++ UnknownOps).
