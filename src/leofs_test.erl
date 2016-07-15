@@ -81,6 +81,9 @@ main(Args) ->
     AnsibleUser = leo_misc:get_value(?PROP_ANSIBLE_USER, Opts, ?ANSIBLE_USER),
     ok = application:set_env(?APP, ?PROP_ANSIBLE_USER, AnsibleUser),
 
+    AnsiblePK = leo_misc:get_value(?PROP_ANSIBLE_PK, Opts, ?ANSIBLE_PK),
+    ok = application:set_env(?APP, ?PROP_ANSIBLE_PK, AnsiblePK),
+
     %% Load/Start apps
     ok = code:add_paths(["ebin",
                          "deps/erlcloud/ebin",
@@ -176,7 +179,8 @@ option_spec_list() ->
      {replicas, $r, "replicas", integer,   "# of replicas"},
      {scenario, $s, "scenario", atom,      "Test Scenario"},
      {test,     $t, "test",     atom,      "Execute a test"},
-     {user,     $u, "user",     string,    "User used for ansible"},
+     {ansible_user, $u, "ansible_user", string, "User used by ansible"},
+     {ansible_pk,   $a, "ansible_pk",   string, "Private Key used by ansible"},
      %% misc
      {help,     $h, "help",     undefined, "Show the program options"},
      {version,  $v, "version",  undefined, "Show version information"}

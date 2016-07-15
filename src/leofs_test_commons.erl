@@ -502,9 +502,9 @@ control_cluster_via_ansible(Inventory, PlayBook) ->
     AnsibleDir = filename:join([WorkDir, "leofs_ansible"]),
     InventoryPath = filename:join([AnsibleDir, Inventory]),
     PlayBookPath = filename:join([AnsibleDir, PlayBook]),
-    AnsibleKey = filename:join([AnsibleDir, "ansible_key"]),
     User = application:get_env(?APP, ?PROP_ANSIBLE_USER, ?ANSIBLE_USER),
-    Cmd = lists:flatten(io_lib:format("ansible-playbook -i ~s -u ~s --private-key ~s -b ~s", [InventoryPath,  User, AnsibleKey, PlayBookPath])),
+    PK = application:get_env(?APP, ?PROP_ANSIBLE_PK, ?ANSIBLE_PK),
+    Cmd = lists:flatten(io_lib:format("ansible-playbook -i ~s -u ~s --private-key ~s -b ~s", [InventoryPath,  User, PK, PlayBookPath])),
     % @debug
     io:format(user, "[debug] Cmd: ~s~n", [Cmd]),
     Ret = os:cmd(Cmd),

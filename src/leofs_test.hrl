@@ -38,8 +38,10 @@
 -define(PROP_GW_PORT,   'gw_port').
 -define(PROP_REPLICAS,  'replicas').
 -define(PROP_ANSIBLE_USER, 'ansible_user').
+-define(PROP_ANSIBLE_PK, 'ansible_pk').
 
 -define(ANSIBLE_USER, "leofs").
+-define(ANSIBLE_PK, "~/.ssh/id_rsa").
 -define(BUCKET,  "backup").
 -define(NODE, 'integrator@127.0.0.1').
 -define(MANAGER_NODE, "manager_0@127.0.0.1").
