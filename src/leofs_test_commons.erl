@@ -27,12 +27,9 @@
 
 -export([run/2]).
 
--define(ATTACH_NODE,   'S2@192.168.0.153').
--define(DETACH_NODE_1, 'S0@192.168.0.151').
 -define(SUSPEND_NODE,  'S1@192.168.0.152').
 -define(RESUME_NODE,   'S1@192.168.0.152').
 -define(RECOVER_NODE,  'S3@192.168.0.154').
--define(TAKEOVER_NODE, 'S4@192.168.0.155').
 
 
 %% @doc Execute tests
@@ -69,16 +66,7 @@ run(?F_ATTACH_NODE,_S3Conf) ->
     control_cluster(attach),
     ok;
 run(?F_TAKEOVER,_S3Conf) ->
-    DetachedNode = ?DETACH_NODE_1,
-    case rpc:call(?env_manager(), leo_manager_api,
-                  detach, [DetachedNode]) of
-        ok ->
-            control_cluster(takeover),
-            ok;
-        _Error ->
-            ?msg_error(["Could not detach the node:", DetachedNode]),
-            halt()
-    end,
+    control_cluster(takeover),
     ok;
 run(?F_DETACH_NODE,_S3Conf) ->
     control_cluster(detach),

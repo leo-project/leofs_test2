@@ -7,6 +7,12 @@
   roles:
       - { role: controller }
 
+- hosts: localhost
+  gather_facts: False
+  tasks:
+      - name: Detach Node
+        command: ./leofs-adm detach {{ hostvars['192.168.0.151']['leofs_module_nodename'] }}
+
 - hosts: leo_storage_stop
   name: Stop LeoStorages
   roles:
