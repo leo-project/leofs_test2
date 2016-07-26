@@ -11,10 +11,10 @@
   gather_facts: False
   tasks:
       - name: Suspend Node
-        command: ./leofs-adm suspend {{ hostvars['192.168.0.152']['leofs_module_nodename'] }}
+        command: ./leofs-adm suspend {{ resume_node }}
 
 - hosts: localhost
   gather_facts: False
   tasks:
     - name: Wait for LeoStorages
-      pause: seconds=5
+      pause: seconds=30

@@ -11,10 +11,10 @@
   gather_facts: False
   tasks:
       - name: Recover Node
-        command: ./leofs-adm recover-node {{ hostvars['192.168.0.154']['leofs_module_nodename'] }}
+        command: ./leofs-adm recover-node {{ recover_node }}
 
 - hosts: localhost
   gather_facts: False
   tasks:
     - name: Wait for LeoStorages
-      pause: seconds=5
+      pause: seconds=30
