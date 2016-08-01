@@ -14,7 +14,7 @@
   gather_facts: False
   tasks:
     - name: Wait for LeoStorages
-      pause: seconds=5
+      pause: seconds=30
 
 - hosts: leo_storage
   name: Remove AVS Files LeoStorage
@@ -30,4 +30,4 @@
   gather_facts: False
   tasks:
     - name: Wait for LeoStorages
-      pause: seconds=5
+      pause: seconds=30

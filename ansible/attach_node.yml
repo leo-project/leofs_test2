@@ -16,7 +16,7 @@
   gather_facts: False
   tasks:
     - name: Wait for LeoStorages
-      pause: seconds=10
+      pause: seconds=30
 
 - hosts: localhost
   gather_facts: False
