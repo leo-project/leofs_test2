@@ -367,9 +367,30 @@ compare_1(Key, L1, L2) ->
     end,
     compare_2(2, Key, L1, L2).
 
-compare_2(9,_Key,_L1,_L2) ->
-    ok;
+compare_2(Index, Key, L1, L2) when is_list(element(2, L1)) andalso
+                                   is_list(element(2, L2)) ->
+    compare_3(Index, Key, element(2, L1), element(2, L2));
 compare_2(Index, Key, L1, L2) ->
+    compare_3(Index, Key, L1, L2).
+
+compare_3(9,_Key,_L1,_L2) ->
+    ok;
+compare_3(Index, Key, L1, L2) when is_list(L1) andalso
+                                   is_list(L2) ->
+    case (length(L1) >= Index - 1 andalso
+          length(L2) >= Index - 1) of
+        true ->
+            case lists:nth(Index - 1, L1) == lists:nth(Index - 1, L2) of
+                true ->
+                    ok;
+                false ->
+                    io:format("[ERROR] ~s, ~p, ~p~n", [Key, L1, L2])
+            end;
+        false ->
+            io:format("[ERROR] ~s, ~p, ~p~n", [Key, L1, L2])
+    end,
+    compare_3(Index + 1, Key, L1, L2);
+compare_3(Index, Key, L1, L2) ->
     case (erlang:size(L1) >= Index andalso
           erlang:size(L2) >= Index) of
         true ->
@@ -382,7 +403,7 @@ compare_2(Index, Key, L1, L2) ->
         false ->
             io:format("[ERROR] ~s, ~p, ~p~n", [Key, L1, L2])
     end,
-    compare_2(Index + 1, Key, L1, L2).
+    compare_3(Index + 1, Key, L1, L2).
 
 
 %% @doc Retrieve storage nodes
