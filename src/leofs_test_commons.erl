@@ -350,9 +350,11 @@ check_redundancies_2(Key) ->
                     ok
             end;
         {ok,_RetL} ->
-            io:format("[ERROR] ~s, ~w~n", [Key, inconsistent_object]);
+            io:format("[ERROR] ~s, ~w~n", [Key, inconsistent_object]),
+            halt(1);
         Other ->
-            io:format("[ERROR] ~s, ~p~n", [Key, Other])
+            io:format("[ERROR] ~s, ~p~n", [Key, Other]),
+            halt(1)
     end.
 
 
@@ -363,7 +365,8 @@ compare_1(Key, L1, L2) ->
         true ->
             ok;
         false ->
-            io:format("[ERROR] ~s, ~p, ~p~n", [Key, L1, L2])
+            io:format("[ERROR] ~s, ~p, ~p~n", [Key, L1, L2]),
+            halt(1)
     end,
     compare_2(2, Key, L1, L2).
 
@@ -384,10 +387,12 @@ compare_3(Index, Key, L1, L2) when is_list(L1) andalso
                 true ->
                     ok;
                 false ->
-                    io:format("[ERROR] ~s, ~p, ~p~n", [Key, L1, L2])
+                    io:format("[ERROR] ~s, ~p, ~p~n", [Key, L1, L2]),
+                    halt(1)
             end;
         false ->
-            io:format("[ERROR] ~s, ~p, ~p~n", [Key, L1, L2])
+            io:format("[ERROR] ~s, ~p, ~p~n", [Key, L1, L2]),
+            halt(1)
     end,
     compare_3(Index + 1, Key, L1, L2);
 compare_3(Index, Key, L1, L2) ->
@@ -398,10 +403,12 @@ compare_3(Index, Key, L1, L2) ->
                 true ->
                     ok;
                 false ->
-                    io:format("[ERROR] ~s, ~p, ~p~n", [Key, L1, L2])
+                    io:format("[ERROR] ~s, ~p, ~p~n", [Key, L1, L2]),
+                    halt(1)
             end;
         false ->
-            io:format("[ERROR] ~s, ~p, ~p~n", [Key, L1, L2])
+            io:format("[ERROR] ~s, ~p, ~p~n", [Key, L1, L2]),
+            halt(1)
     end,
     compare_3(Index + 1, Key, L1, L2).
 
@@ -416,7 +423,7 @@ get_storage_nodes() ->
                           state = ?STATE_RUNNING} <- RetL];
         _ ->
             ?msg_error("Could not retrieve the running nodes"),
-            halt()
+            halt(1)
     end.
 
 
@@ -444,7 +451,7 @@ watch_mq_1([Node|Rest]) ->
             end;
         _ ->
             ?msg_error("Could not retrieve mq-state of the node"),
-            halt()
+            halt(1)
     end.
 
 watch_mq_2([]) ->
@@ -478,7 +485,7 @@ diagnosis_1([Node|Rest]) ->
             diagnosis_1(Rest);
         _Other ->
             ?msg_error("Could not execute data-diagnosis"),
-            halt()
+            halt(1)
     end.
 
 
@@ -499,7 +506,7 @@ compaction_1([Node|Rest]) ->
             compaction_1(Rest);
         _Other ->
             ?msg_error("Could not execute data-compaction"),
-            halt()
+            halt(1)
     end.
 
 %% @private
@@ -513,7 +520,7 @@ compaction_2(Node) ->
             compaction_2(Node);
         _ ->
             ?msg_error("data-compaction/data-diagnosis failure"),
-            halt()
+            halt(1)
     end.
 
 %% @doc Control the cluster via ansible
