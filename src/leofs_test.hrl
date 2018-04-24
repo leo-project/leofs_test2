@@ -32,6 +32,9 @@
 -define(PROP_BUCKET,    'bucket').
 -define(PROP_KEYS,      'keys').
 -define(PROP_LEOFS_DIR, 'leofs_dir').
+-define(PROP_SCENARIO,  'scenario').
+-define(PROP_LAUNCH,    'launch').
+-define(PROP_REPLICAS, 'replicas').
 
 -define(BUCKET,  "backup").
 -define(NODE, 'integrator@127.0.0.1').
@@ -85,12 +88,14 @@
 
 %% TEST Scenatios:
 -define(F_PUT_OBJ,           put_objects).
+-define(F_PUT_ZERO_BYTE_OBJ, put_zero_byte_objects).
 -define(F_GET_OBJ,           get_objects).
 -define(F_GET_OBJ_NOT_FOUND, get_objects_not_found).
 -define(F_DEL_OBJ,           del_objects).
 -define(F_CREATE_BUCKET,     create_bucket).
 -define(F_CHECK_REPLICAS,    check_redundancies).
 -define(F_ATTACH_NODE,       attach_node).
+-define(F_TAKEOVER,          takeover).
 -define(F_DETACH_NODE,       detach_node).
 -define(F_SUSPEND_NODE,      suspend_node).
 -define(F_RESUME_NODE,       resume_node).
@@ -103,12 +108,14 @@
 -define(F_RECOVER_NODE,      recover_node).
 
 -define(SC_ITEM_PUT_OBJ,           {?F_PUT_OBJ,           "put objects"}).
+-define(SC_ITEM_PUT_ZERO_BYTE_OBJ, {?F_PUT_ZERO_BYTE_OBJ, "put zero byte objects"}).
 -define(SC_ITEM_GET_OBJ,           {?F_GET_OBJ,           "get objects"}).
 -define(SC_ITEM_GET_OBJ_NOT_FOUND, {?F_GET_OBJ_NOT_FOUND, "get objects_not_found"}).
 -define(SC_ITEM_DEL_OBJ,           {?F_DEL_OBJ,        "remove objects"}).
 -define(SC_ITEM_CREATE_BUCKET,     {?F_CREATE_BUCKET,  "create a bucket"}).
 -define(SC_ITEM_CHECK_REPLICAS,    {?F_CHECK_REPLICAS, "check redundancies of replicas"}).
 -define(SC_ITEM_ATTACH_NODE,       {?F_ATTACH_NODE,    "attach a node"}).
+-define(SC_ITEM_TAKEOVER,          {?F_TAKEOVER,       "takeover"}).
 -define(SC_ITEM_DETACH_NODE,       {?F_DETACH_NODE,    "detach a node"}).
 -define(SC_ITEM_SUSPEND_NODE,      {?F_SUSPEND_NODE,   "suspend a node"}).
 -define(SC_ITEM_RESUME_NODE,       {?F_RESUME_NODE,    "resume a node"}).
@@ -125,6 +132,7 @@
                    ?SC_ITEM_DEL_OBJ,
                    ?SC_ITEM_CREATE_BUCKET,
                    ?SC_ITEM_CHECK_REPLICAS,
+                   ?SC_ITEM_TAKEOVER,
                    ?SC_ITEM_ATTACH_NODE,
                    ?SC_ITEM_DETACH_NODE,
                    ?SC_ITEM_SUSPEND_NODE,
@@ -136,8 +144,19 @@
                    ?SC_ITEM_REMOVE_AVS,
                    ?SC_ITEM_RECOVER_NODE
                   ]).
+%% general tests
+-define(SCENARIO_1A, {"SCENARIO-1A", [?SC_ITEM_CREATE_BUCKET,
+                                      ?SC_ITEM_PUT_OBJ,
+                                      ?SC_ITEM_TAKEOVER,
+                                      ?SC_ITEM_WATCH_MQ,
+                                      ?SC_ITEM_GET_OBJ,
+                                      ?SC_ITEM_CHECK_REPLICAS
+                                     ]}).
+
 -define(SCENARIO_1, {"SCENARIO-1", [?SC_ITEM_CREATE_BUCKET,
                                     ?SC_ITEM_GET_OBJ_NOT_FOUND,
+                                    ?SC_ITEM_PUT_ZERO_BYTE_OBJ,
+                                    ?SC_ITEM_GET_OBJ,
                                     ?SC_ITEM_PUT_OBJ,
                                     ?SC_ITEM_GET_OBJ,
                                     ?SC_ITEM_CHECK_REPLICAS,
@@ -145,6 +164,7 @@
                                     ?SC_ITEM_CHECK_REPLICAS
                                    ]}).
 
+%% detach a node
 -define(SCENARIO_2, {"SCENARIO-2", [?SC_ITEM_PUT_OBJ,
                                     ?SC_ITEM_DETACH_NODE,
                                     ?SC_ITEM_WATCH_MQ,
@@ -152,16 +172,15 @@
                                     ?SC_ITEM_CHECK_REPLICAS
                                    ]}).
 
--define(SCENARIO_3, {"SCENARIO-3", [?SC_ITEM_ATTACH_NODE,
+%% take-over a node
+-define(SCENARIO_3, {"SCENARIO-3", [?SC_ITEM_PUT_OBJ,
+                                    ?SC_ITEM_TAKEOVER,
                                     ?SC_ITEM_WATCH_MQ,
-                                    ?SC_ITEM_CHECK_REPLICAS,
                                     ?SC_ITEM_GET_OBJ,
-                                    %% ?SC_ITEM_DIAGNOSIS,
-                                    ?SC_ITEM_COMPACTION,
-                                    ?SC_ITEM_CHECK_REPLICAS,
-                                    ?SC_ITEM_GET_OBJ
+                                    ?SC_ITEM_CHECK_REPLICAS
                                    ]}).
 
+%% suspend > resume > resume node
 -define(SCENARIO_4, {"SCENARIO-4", [?SC_ITEM_PUT_OBJ,
                                     ?SC_ITEM_SUSPEND_NODE,
                                     ?SC_ITEM_STOP_NODE,
@@ -173,11 +192,25 @@
                                     ?SC_ITEM_GET_OBJ
                                    ]}).
 
--define(SCENARIO_5, {"SCENARIO-5", [?SC_ITEM_REMOVE_AVS,
-                                    ?SC_ITEM_RECOVER_NODE,
+%% attach a node > rebalance
+-define(SCENARIO_5, {"SCENARIO-5", [?SC_ITEM_PUT_OBJ,
+                                    ?SC_ITEM_ATTACH_NODE,
                                     ?SC_ITEM_WATCH_MQ,
+                                    ?SC_ITEM_GET_OBJ,
+                                    ?SC_ITEM_CHECK_REPLICAS,
+                                    %% ?SC_ITEM_DIAGNOSIS,
+                                    ?SC_ITEM_COMPACTION,
                                     ?SC_ITEM_CHECK_REPLICAS,
                                     ?SC_ITEM_GET_OBJ
+                                   ]}).
+
+%% recover node
+-define(SCENARIO_6, {"SCENARIO-6", [?SC_ITEM_PUT_OBJ,
+                                    ?SC_ITEM_REMOVE_AVS,
+                                    ?SC_ITEM_RECOVER_NODE,
+                                    ?SC_ITEM_WATCH_MQ,
+                                    ?SC_ITEM_GET_OBJ,
+                                    ?SC_ITEM_CHECK_REPLICAS
                                    ]}).
 
 %% @doc Nodes

@@ -27,11 +27,13 @@
 
 -export([run/2]).
 
--define(ATTACH_NODE,  'storage_3@127.0.0.1').
--define(DETACH_NODE,  'storage_3@127.0.0.1').
--define(SUSPEND_NODE, 'storage_1@127.0.0.1').
--define(RESUME_NODE,  'storage_1@127.0.0.1').
--define(RECOVER_NODE, 'storage_2@127.0.0.1').
+-define(ATTACH_NODE,   'storage_3@127.0.0.1').
+-define(DETACH_NODE,   'storage_3@127.0.0.1').
+-define(DETACH_NODE_1, 'storage_0@127.0.0.1').
+-define(SUSPEND_NODE,  'storage_1@127.0.0.1').
+-define(RESUME_NODE,   'storage_1@127.0.0.1').
+-define(RECOVER_NODE,  'storage_2@127.0.0.1').
+-define(TAKEOVER_NODE, 'storage_4@127.0.0.1').
 
 
 %% @doc Execute tests
@@ -41,6 +43,10 @@ run(?F_CREATE_BUCKET, S3Conf) ->
 run(?F_PUT_OBJ, S3Conf) ->
     Keys = ?env_keys(),
     ok = put_object(S3Conf, Keys),
+    ok;
+run(?F_PUT_ZERO_BYTE_OBJ, S3Conf) ->
+    Keys = ?env_keys(),
+    ok = put_zero_byte_object(S3Conf, Keys),
     ok;
 run(?F_GET_OBJ, S3Conf) ->
     Keys = ?env_keys(),
@@ -62,6 +68,23 @@ run(?F_CHECK_REPLICAS, S3Conf) ->
 %% Operate a node
 run(?F_ATTACH_NODE,_S3Conf) ->
     ok = attach_node(?ATTACH_NODE),
+    ok;
+run(?F_TAKEOVER,_S3Conf) ->
+    DetachedNode = ?DETACH_NODE_1,
+    case rpc:call(?env_manager(), leo_manager_api,
+                  detach, [DetachedNode]) of
+        ok ->
+            ok = stop_node(DetachedNode),
+
+            Node = ?TAKEOVER_NODE,
+            ok = start_node(Node),
+            timer:sleep(timer:seconds(10)),
+            ok = attach_node_1(Node, 0),
+            ok;
+        _Error ->
+            ?msg_error(["Could not detach the node:", DetachedNode]),
+            halt()
+    end,
     ok;
 run(?F_DETACH_NODE,_S3Conf) ->
     ok = detach_node(?DETACH_NODE),
@@ -198,6 +221,23 @@ put_object(Conf, Keys) when Keys > ?UNIT_OF_PARTION ->
 put_object(Conf, Keys) ->
     put_object_1(Conf, undefined, undefined, 1, Keys).
 
+
+put_zero_byte_object(_,0) ->
+    ?msg_progress_finished(),
+    ok;
+put_zero_byte_object(Conf, Keys) ->
+    Key = gen_key(Keys),
+    indicator(Keys),
+
+    case catch erlcloud_s3:put_object(?env_bucket(), Key, <<>>, [], Conf) of
+        {'EXIT',_Cause} ->
+            timer:sleep(timer:seconds(1)),
+            put_zero_byte_object(Conf, Keys);
+        _ ->
+            put_zero_byte_object(Conf, Keys - 1)
+    end.
+
+
 %% @private
 put_object_1(_, From, Ref, Start, End) when Start > End ->
     case (From == undefined andalso
@@ -323,15 +363,23 @@ check_redundancies_1(Conf, From, Ref, Start, End) ->
 
 %% @private
 check_redundancies_2(Key) ->
+    Replicas = application:get_env(?APP, ?PROP_REPLICAS, ?NUM_OF_REPLICAS),
     case rpc:call(?env_manager(), leo_manager_api, whereis, [[Key], true]) of
-        {ok, RetL} when length(RetL) == ?NUM_OF_REPLICAS ->
-            L1 = lists:nth(1, RetL),
-            L2 = lists:nth(2, RetL),
-            ok = compare_1(Key, L1, L2);
+        {ok, RetL} when length(RetL) == Replicas ->
+            case Replicas > 1 of
+                true ->
+                    L1 = lists:nth(1, RetL),
+                    L2 = lists:nth(2, RetL),
+                    ok = compare_1(Key, L1, L2);
+                false ->
+                    ok
+            end;
         {ok,_RetL} ->
-            io:format("[ERROR] ~s, ~w~n", [Key, inconsistent_object]);
+            io:format("[ERROR] ~s, ~w~n", [Key, inconsistent_object]),
+            halt(1);
         Other ->
-            io:format("[ERROR] ~s, ~p~n", [Key, Other])
+            io:format("[ERROR] ~s, ~p~n", [Key, Other]),
+            halt(1)
     end.
 
 
@@ -342,13 +390,39 @@ compare_1(Key, L1, L2) ->
         true ->
             ok;
         false ->
-            io:format("[ERROR] ~s, ~p, ~p~n", [Key, L1, L2])
+            io:format("[ERROR] ~s, ~p, ~p~n", [Key, L1, L2]),
+            halt(1)
     end,
     compare_2(2, Key, L1, L2).
 
-compare_2(9,_Key,_L1,_L2) ->
-    ok;
+%% @private
+compare_2(Index, Key, L1, L2) when is_list(element(2, L1)) andalso
+                                   is_list(element(2, L2)) ->
+    compare_3(Index, Key, element(2, L1), element(2, L2));
 compare_2(Index, Key, L1, L2) ->
+    compare_3(Index, Key, L1, L2).
+
+%% @private
+compare_3(9,_Key,_L1,_L2) ->
+    ok;
+compare_3(Index, Key, L1, L2) when is_list(L1) andalso
+                                   is_list(L2) ->
+    case (length(L1) >= Index - 1 andalso
+          length(L2) >= Index - 1) of
+        true ->
+            case lists:nth(Index - 1, L1) == lists:nth(Index - 1, L2) of
+                true ->
+                    ok;
+                false ->
+                    io:format("[ERROR] ~s, ~p, ~p~n", [Key, L1, L2]),
+                    halt(1)
+            end;
+        false ->
+            io:format("[ERROR] ~s, ~p, ~p~n", [Key, L1, L2]),
+            halt(1)
+    end,
+    compare_3(Index + 1, Key, L1, L2);
+compare_3(Index, Key, L1, L2) ->
     case (erlang:size(L1) >= Index andalso
           erlang:size(L2) >= Index) of
         true ->
@@ -356,12 +430,14 @@ compare_2(Index, Key, L1, L2) ->
                 true ->
                     ok;
                 false ->
-                    io:format("[ERROR] ~s, ~p, ~p~n", [Key, L1, L2])
+                    io:format("[ERROR] ~s, ~p, ~p~n", [Key, L1, L2]),
+                    halt(1)
             end;
         false ->
-            io:format("[ERROR] ~s, ~p, ~p~n", [Key, L1, L2])
+            io:format("[ERROR] ~s, ~p, ~p~n", [Key, L1, L2]),
+            halt(1)
     end,
-    compare_2(Index + 1, Key, L1, L2).
+    compare_3(Index + 1, Key, L1, L2).
 
 
 %% @doc Attach the node
@@ -395,7 +471,28 @@ attach_node_1(Node, Times) ->
 detach_node(Node) ->
     case rpc:call(?env_manager(), leo_manager_api, detach, [Node]) of
         ok ->
+            %% Stop the node
             ok = stop_node(Node),
+
+            %% remove the current data
+            timer:sleep(timer:seconds(10)),
+            LeoFSDir = ?env_leofs_dir(),
+            Path_2 = filename:join([LeoFSDir, ?node_to_avs_dir(Node)]),
+            case filelib:is_dir(Path_2) of
+                true ->
+                    case (string:str(Path_2, "avs") > 0) of
+                        true ->
+                            [] = os:cmd("rm -rf " ++ Path_2),
+                            timer:sleep(timer:seconds(3)),
+                            ok;
+                        false ->
+                            ok
+                    end;
+                false ->
+                    ok
+            end,
+
+            %% Execute the rebalance-command
             rebalance();
         _Error ->
             ?msg_error(["Could not detach the node:", Node]),
@@ -484,8 +581,9 @@ start_node(Node) ->
 %% @doc Stop the node
 %% @private
 stop_node(Node) ->
-    Path = filename:join([?env_leofs_dir(), ?node_to_path(Node)]),
-    os:cmd(Path ++ " stop"),
+    LeoFSDir = ?env_leofs_dir(),
+    Path_1 = filename:join([LeoFSDir, ?node_to_path(Node)]),
+    os:cmd(Path_1 ++ " stop"),
     ok.
 
 

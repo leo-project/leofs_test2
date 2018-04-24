@@ -1,6 +1,6 @@
 # LeoFS Integration Test Tool
 
-![LeoFS Logo](http://leo-project.net/leofs/docs/_static/leofs-logo-small.png)
+![LeoFS Logo](https://leo-project.net/leofs/docs-old/_static/leofs-logo-small.png)
 
 ## Overview
 
