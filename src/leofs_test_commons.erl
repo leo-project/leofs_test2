@@ -363,15 +363,23 @@ check_redundancies_1(Conf, From, Ref, Start, End) ->
 
 %% @private
 check_redundancies_2(Key) ->
+    Replicas = application:get_env(?APP, ?PROP_REPLICAS, ?NUM_OF_REPLICAS),
     case rpc:call(?env_manager(), leo_manager_api, whereis, [[Key], true]) of
-        {ok, RetL} when length(RetL) == ?NUM_OF_REPLICAS ->
-            L1 = lists:nth(1, RetL),
-            L2 = lists:nth(2, RetL),
-            ok = compare_1(Key, L1, L2);
+        {ok, RetL} when length(RetL) == Replicas ->
+            case Replicas > 1 of
+                true ->
+                    L1 = lists:nth(1, RetL),
+                    L2 = lists:nth(2, RetL),
+                    ok = compare_1(Key, L1, L2);
+                false ->
+                    ok
+            end;
         {ok,_RetL} ->
-            io:format("[ERROR] ~s, ~w~n", [Key, inconsistent_object]);
+            io:format("[ERROR] ~s, ~w~n", [Key, inconsistent_object]),
+            halt(1);
         Other ->
-            io:format("[ERROR] ~s, ~p~n", [Key, Other])
+            io:format("[ERROR] ~s, ~p~n", [Key, Other]),
+            halt(1)
     end.
 
 
@@ -382,13 +390,39 @@ compare_1(Key, L1, L2) ->
         true ->
             ok;
         false ->
-            io:format("[ERROR] ~s, ~p, ~p~n", [Key, L1, L2])
+            io:format("[ERROR] ~s, ~p, ~p~n", [Key, L1, L2]),
+            halt(1)
     end,
     compare_2(2, Key, L1, L2).
 
-compare_2(9,_Key,_L1,_L2) ->
-    ok;
+%% @private
+compare_2(Index, Key, L1, L2) when is_list(element(2, L1)) andalso
+                                   is_list(element(2, L2)) ->
+    compare_3(Index, Key, element(2, L1), element(2, L2));
 compare_2(Index, Key, L1, L2) ->
+    compare_3(Index, Key, L1, L2).
+
+%% @private
+compare_3(9,_Key,_L1,_L2) ->
+    ok;
+compare_3(Index, Key, L1, L2) when is_list(L1) andalso
+                                   is_list(L2) ->
+    case (length(L1) >= Index - 1 andalso
+          length(L2) >= Index - 1) of
+        true ->
+            case lists:nth(Index - 1, L1) == lists:nth(Index - 1, L2) of
+                true ->
+                    ok;
+                false ->
+                    io:format("[ERROR] ~s, ~p, ~p~n", [Key, L1, L2]),
+                    halt(1)
+            end;
+        false ->
+            io:format("[ERROR] ~s, ~p, ~p~n", [Key, L1, L2]),
+            halt(1)
+    end,
+    compare_3(Index + 1, Key, L1, L2);
+compare_3(Index, Key, L1, L2) ->
     case (erlang:size(L1) >= Index andalso
           erlang:size(L2) >= Index) of
         true ->
@@ -396,12 +430,14 @@ compare_2(Index, Key, L1, L2) ->
                 true ->
                     ok;
                 false ->
-                    io:format("[ERROR] ~s, ~p, ~p~n", [Key, L1, L2])
+                    io:format("[ERROR] ~s, ~p, ~p~n", [Key, L1, L2]),
+                    halt(1)
             end;
         false ->
-            io:format("[ERROR] ~s, ~p, ~p~n", [Key, L1, L2])
+            io:format("[ERROR] ~s, ~p, ~p~n", [Key, L1, L2]),
+            halt(1)
     end,
-    compare_2(Index + 1, Key, L1, L2).
+    compare_3(Index + 1, Key, L1, L2).
 
 
 %% @doc Attach the node
