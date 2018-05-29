@@ -72,6 +72,7 @@ main(Args) ->
     %% Load/Start apps
     ok = code:add_paths(["ebin",
                          "deps/erlcloud/ebin",
+                         "deps/base16/ebin",
                          "deps/lhttpc/ebin",
                          "deps/eini/ebin",
                          "deps/jsx/ebin",
