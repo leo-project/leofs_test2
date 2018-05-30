@@ -106,6 +106,10 @@
 -define(F_DIAGNOSIS,         diagnosis).
 -define(F_REMOVE_AVS,        remove_avs).
 -define(F_RECOVER_NODE,      recover_node).
+-define(F_MP_UPLOAD_NORMAL,             mp_upload_normal).
+-define(F_MP_UPLOAD_NORMAL_IN_PARALLEL, mp_upload_normal_in_parallel).
+-define(F_MP_UPLOAD_ABORT,              mp_upload_abort).
+-define(F_MP_UPLOAD_INVALID_COMPLETE,   mp_upload_invalid_complete).
 
 -define(SC_ITEM_PUT_OBJ,           {?F_PUT_OBJ,           "put objects"}).
 -define(SC_ITEM_PUT_ZERO_BYTE_OBJ, {?F_PUT_ZERO_BYTE_OBJ, "put zero byte objects"}).
@@ -126,6 +130,10 @@
 -define(SC_ITEM_DIAGNOSIS,         {?F_DIAGNOSIS,      "execute data-diagnosis"}).
 -define(SC_ITEM_REMOVE_AVS,        {?F_REMOVE_AVS,     "remove avs of a node"}).
 -define(SC_ITEM_RECOVER_NODE,      {?F_RECOVER_NODE,   "recover data of a node"}).
+-define(SC_ITEM_MP_UPLOAD_NORMAL,  {?F_MP_UPLOAD_NORMAL, "multipart upload"}).
+-define(SC_ITEM_MP_UPLOAD_NORMAL_IN_PARALLEL, {?F_MP_UPLOAD_NORMAL_IN_PARALLEL, "multipart upload in parallel"}).
+-define(SC_ITEM_MP_UPLOAD_ABORT, {?F_MP_UPLOAD_ABORT, "abort multipart upload"}).
+-define(SC_ITEM_MP_UPLOAD_INVALID_COMPLETE, {?F_MP_UPLOAD_INVALID_COMPLETE, "invalid complete multipart upload"}).
 -define(SC_ITEMS, [?SC_ITEM_PUT_OBJ,
                    ?SC_ITEM_GET_OBJ,
                    ?SC_ITEM_GET_OBJ_NOT_FOUND,
@@ -142,7 +150,11 @@
                    ?SC_ITEM_WATCH_MQ,
                    ?SC_ITEM_COMPACTION,
                    ?SC_ITEM_REMOVE_AVS,
-                   ?SC_ITEM_RECOVER_NODE
+                   ?SC_ITEM_RECOVER_NODE,
+                   ?SC_ITEM_MP_UPLOAD_NORMAL,
+                   ?SC_ITEM_MP_UPLOAD_NORMAL_IN_PARALLEL,
+                   ?SC_ITEM_MP_UPLOAD_ABORT,
+                   ?SC_ITEM_MP_UPLOAD_INVALID_COMPLETE
                   ]).
 %% general tests
 -define(SCENARIO_1A, {"SCENARIO-1A", [?SC_ITEM_CREATE_BUCKET,

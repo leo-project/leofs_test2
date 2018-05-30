@@ -118,8 +118,109 @@ run(?F_REMOVE_AVS,_S3Conf) ->
 run(?F_RECOVER_NODE,_S3Conf) ->
     ok = recover_node(?RECOVER_NODE),
     ok;
+%% MP(multipart upload) related
+run(?F_MP_UPLOAD_NORMAL, S3Conf) ->
+    Bucket = ?env_bucket(),
+    Key = gen_key_for_multipart("normal"),
+    PartBin = crypto:strong_rand_bytes(10 * 1024 * 1024),
+    try
+        {ok, PropList} = erlcloud_s3:start_multipart(Bucket, Key, [], [], S3Conf),
+        UploadId = proplists:get_value(uploadId, PropList),
+        PartIdList = lists:seq(1, 2),
+        PartResults = [{ok, _} = erlcloud_s3:upload_part(Bucket, Key, UploadId, PartNum, PartBin, [], S3Conf) || PartNum <- PartIdList],
+        ETagList = lists:zip(PartIdList, [proplists:get_value(etag, P) || {ok, P} <- PartResults]),
+        ok = erlcloud_s3:complete_multipart(Bucket, Key, UploadId, ETagList, [], S3Conf)
+    catch
+        ErrType:Cause ->
+            io:format("[ERROR] Multipart Upload failed due to ~p, ~p~n", [ErrType, Cause]),
+            halt()
+    end;
+run(?F_MP_UPLOAD_NORMAL_IN_PARALLEL, S3Conf) ->
+    Bucket = ?env_bucket(),
+    Key = gen_key_for_multipart("in_parallel"),
+    PartBin = crypto:strong_rand_bytes(10 * 1024 * 1024),
+    try
+        {ok, PropList} = erlcloud_s3:start_multipart(Bucket, Key, [], [], S3Conf),
+        UploadId = proplists:get_value(uploadId, PropList),
+        %% set the large number to make the race be likely to happen on the server side
+        PartIdList = lists:seq(1, 8),
+        Parent = self(),
+        PidList = [spawn(fun() ->
+                             {ok, Props} = erlcloud_s3:upload_part(Bucket, Key, UploadId, PartNum, PartBin, [], S3Conf),
+                             Parent ! {self(), PartNum, proplists:get_value(etag, Props)}
+                         end) || PartNum <- PartIdList],
+        ETagList = wait_for_children(PidList),
+        ok = erlcloud_s3:complete_multipart(Bucket, Key, UploadId, ETagList, [], S3Conf)
+    catch
+        ErrType:Cause ->
+            io:format("[ERROR] Multipart Upload failed due to ~p, ~p~n", [ErrType, Cause]),
+            halt()
+    end;
+run(?F_MP_UPLOAD_ABORT, S3Conf) ->
+    Bucket = ?env_bucket(),
+    Key = gen_key_for_multipart("abort"),
+    PartBin = crypto:strong_rand_bytes(10 * 1024 * 1024),
+    try
+        {ok, PropList} = erlcloud_s3:start_multipart(Bucket, Key, [], [], S3Conf),
+        UploadId = proplists:get_value(uploadId, PropList),
+        PartIdList = lists:seq(1, 2),
+        [{ok, _} = erlcloud_s3:upload_part(Bucket, Key, UploadId, PartNum, PartBin, [], S3Conf) || PartNum <- PartIdList],
+        ok = erlcloud_s3:abort_multipart(Bucket, Key, UploadId, [], [], S3Conf)
+    catch
+        ErrType:Cause ->
+            io:format("[ERROR] Multipart Upload failed due to ~p, ~p~n", [ErrType, Cause]),
+            halt()
+    end;
+run(?F_MP_UPLOAD_INVALID_COMPLETE, S3Conf) ->
+    Bucket = ?env_bucket(),
+    Key = gen_key_for_multipart("invalid_complete"),
+    PartBin = crypto:strong_rand_bytes(10 * 1024 * 1024),
+    try
+        %% Wrong UploadId
+        %% This test has not passed yet because leo_gateway has had a bug not returning the proper error code(404) according to the AWS S3 spec.
+        %% Reference: https://docs.aws.amazon.com/AmazonS3/latest/API/mpUploadComplete.html
+        {error, {http_error, 404, "NoSuchUpload", _}} = erlcloud_s3:complete_multipart(Bucket, Key, "no_exist", [1,12345678], [], S3Conf),
+
+        {ok, PropList} = erlcloud_s3:start_multipart(Bucket, Key, [], [], S3Conf),
+        UploadId = proplists:get_value(uploadId, PropList),
+        PartIdList = lists:seq(1, 2),
+        PartResults = [{ok, _} = erlcloud_s3:upload_part(Bucket, Key, UploadId, PartNum, PartBin, [], S3Conf) || PartNum <- PartIdList],
+        ETagList = lists:zip(PartIdList, [proplists:get_value(etag, P) || {ok, P} <- PartResults]),
+        %% Invalid part number
+        InvalidETagList = ETagList ++ [{3, "12345678"}],
+        %% Wrong UploadId
+        %% This test has not passed yet because leo_gateway has had a bug not returning the proper error code(400) according to the AWS S3 spec.
+        %% Reference: https://docs.aws.amazon.com/AmazonS3/latest/API/mpUploadComplete.html
+        {error, {http_error, 400, "InvalidPart", _}} = erlcloud_s3:complete_multipart(Bucket, Key, UploadId, InvalidETagList, [], S3Conf),
+        ok
+    catch
+        ErrType:Cause ->
+            io:format("[ERROR] Multipart Upload failed due to ~p, ~p~n", [ErrType, Cause]),
+            halt()
+    end;
 run(_F,_) ->
     ok.
+
+%% @private
+%% Waits for all processes uploading parts in parallel
+%% Returns the list of the tuple {PartNum, ETag} to use in multipart complete request later
+wait_for_children(PidList) ->
+    wait_for_children(PidList, []).
+
+wait_for_children([], Acc) ->
+    Acc;
+wait_for_children(PidList, Acc) ->
+    receive
+        {Pid, PartNum, ETag} ->
+            case lists:member(Pid, PidList) of
+                true ->
+                    wait_for_children(lists:delete(Pid, PidList), [{PartNum, ETag}|Acc]);
+                false ->
+                    wait_for_children(PidList, Acc)
+            end;
+        _ ->
+            wait_for_children(PidList, Acc)
+    end.
 
 %% ---------------------------------------------------------
 %% Inner Functions
@@ -141,6 +242,10 @@ gen_key_by_one_percent(Keys) ->
 gen_key(Index) ->
     lists:append(["test/", integer_to_list(Index)]).
 
+%% @doc Generate a key for multipart uploads
+%% @private
+gen_key_for_multipart(Suffix) when is_list(Suffix) ->
+    lists:append(["test/mp/", Suffix]).
 
 %% @doc Output progress
 %% @private
