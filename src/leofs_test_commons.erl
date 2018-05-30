@@ -265,7 +265,7 @@ indicator(Index, Interval) ->
 rnd_key(NumOfKeys) ->
     gen_key(
       erlang:phash2(
-        erlang:crc32(crypto:rand_bytes(16)), NumOfKeys)).
+        erlang:crc32(crypto:strong_rand_bytes(16)), NumOfKeys)).
 
 
 %% @doc Make partion of processing units
@@ -356,7 +356,7 @@ put_object_1(_, From, Ref, Start, End) when Start > End ->
 put_object_1(Conf, From, Ref, Start, End) ->
     indicator(Start),
     Key = gen_key(Start),
-    Val = crypto:rand_bytes(16),
+    Val = crypto:strong_rand_bytes(16),
     case catch erlcloud_s3:put_object(?env_bucket(), Key, Val, [], Conf) of
         {'EXIT',_Cause} ->
             timer:sleep(timer:seconds(1)),
