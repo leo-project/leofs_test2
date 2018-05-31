@@ -173,7 +173,11 @@
                                     ?SC_ITEM_GET_OBJ,
                                     ?SC_ITEM_CHECK_REPLICAS,
                                     ?SC_ITEM_DEL_OBJ,
-                                    ?SC_ITEM_CHECK_REPLICAS
+                                    ?SC_ITEM_CHECK_REPLICAS,
+                                    ?SC_ITEM_MP_UPLOAD_NORMAL,
+                                    ?SC_ITEM_MP_UPLOAD_NORMAL_IN_PARALLEL,
+                                    ?SC_ITEM_MP_UPLOAD_ABORT,
+                                    ?SC_ITEM_MP_UPLOAD_INVALID_COMPLETE
                                    ]}).
 
 %% detach a node
