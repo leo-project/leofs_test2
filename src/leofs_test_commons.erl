@@ -165,7 +165,50 @@ run(?F_MP_UPLOAD_ABORT, S3Conf) ->
         UploadId = proplists:get_value(uploadId, PropList),
         PartIdList = lists:seq(1, 2),
         [{ok, _} = erlcloud_s3:upload_part(Bucket, Key, UploadId, PartNum, PartBin, [], S3Conf) || PartNum <- PartIdList],
-        ok = erlcloud_s3:abort_multipart(Bucket, Key, UploadId, [], [], S3Conf)
+        ok = erlcloud_s3:abort_multipart(Bucket, Key, UploadId, [], [], S3Conf),
+        %% Confirm whether or not part objects have been removed as expected
+        AllKeys = [
+            lists:append([Bucket, "/", Key]),
+            lists:append([Bucket, "/", Key, "\n1"]),
+            lists:append([Bucket, "/", Key, "\n1\n1"]),
+            lists:append([Bucket, "/", Key, "\n1\n2"]),
+            lists:append([Bucket, "/", Key, "\n2"]),
+            lists:append([Bucket, "/", Key, "\n2\n1"]),
+            lists:append([Bucket, "/", Key, "\n2\n2"])
+        ],
+        %% Have to wait for aync delete bucket/directory queues consuming all messages
+        timer:sleep(timer:seconds(5)), %% for safe
+        watch_mq(),
+        Results = [begin
+                       {ok, Redundancies} = rpc:call(?env_manager(), leo_manager_api, whereis, [[Key4Chunk], true]),
+                       case lists:any(
+                           fun({_, not_found}) ->
+                                  true;
+                              ({_, Fields}) when is_list(Fields) ->
+                                  case proplists:get_value(del, Fields, 0) of
+                                      1 ->
+                                          true;
+                                      0 ->
+                                          false
+                                  end;
+                              (_Other) ->
+                                  false
+                       end, Redundancies) of
+                           true ->
+                               ok;
+                           false ->
+                               {error, Key4Chunk}
+                       end
+                   end || Key4Chunk <- AllKeys],
+        case lists:foldl(fun(ok, Acc) -> Acc;
+                            ({error, K}, Acc) -> [K|Acc]
+                         end, [], Results) of
+            [] ->
+                ok;
+            Garbages ->
+                io:format("[ERROR] Multipart Upload some part objects left. key:~p ~n", [Garbages]),
+                halt()
+        end
     catch
         ErrType:Cause ->
             io:format("[ERROR] Multipart Upload failed due to ~p, ~p~n", [ErrType, Cause]),
@@ -179,7 +222,7 @@ run(?F_MP_UPLOAD_INVALID_COMPLETE, S3Conf) ->
         %% Wrong UploadId
         %% This test has not passed yet because leo_gateway has had a bug not returning the proper error code(404) according to the AWS S3 spec.
         %% Reference: https://docs.aws.amazon.com/AmazonS3/latest/API/mpUploadComplete.html
-        {error, {http_error, 404, "NoSuchUpload", _}} = erlcloud_s3:complete_multipart(Bucket, Key, "no_exist", [1,12345678], [], S3Conf),
+        {error, {http_error, 404, _, _}} = erlcloud_s3:complete_multipart(Bucket, Key, "no_exist", [1,12345678], [], S3Conf),
 
         {ok, PropList} = erlcloud_s3:start_multipart(Bucket, Key, [], [], S3Conf),
         UploadId = proplists:get_value(uploadId, PropList),
@@ -191,7 +234,7 @@ run(?F_MP_UPLOAD_INVALID_COMPLETE, S3Conf) ->
         %% Wrong UploadId
         %% This test has not passed yet because leo_gateway has had a bug not returning the proper error code(400) according to the AWS S3 spec.
         %% Reference: https://docs.aws.amazon.com/AmazonS3/latest/API/mpUploadComplete.html
-        {error, {http_error, 400, "InvalidPart", _}} = erlcloud_s3:complete_multipart(Bucket, Key, UploadId, InvalidETagList, [], S3Conf),
+        {error, {http_error, 400, _, _}} = erlcloud_s3:complete_multipart(Bucket, Key, UploadId, InvalidETagList, [], S3Conf),
         ok
     catch
         ErrType:Cause ->
