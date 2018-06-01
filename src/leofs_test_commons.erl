@@ -118,8 +118,152 @@ run(?F_REMOVE_AVS,_S3Conf) ->
 run(?F_RECOVER_NODE,_S3Conf) ->
     ok = recover_node(?RECOVER_NODE),
     ok;
+%% MP(multipart upload) related
+run(?F_MP_UPLOAD_NORMAL, S3Conf) ->
+    Bucket = ?env_bucket(),
+    Key = gen_key_for_multipart("normal"),
+    PartBin = crypto:strong_rand_bytes(10 * 1024 * 1024),
+    try
+        {ok, PropList} = erlcloud_s3:start_multipart(Bucket, Key, [], [], S3Conf),
+        UploadId = proplists:get_value(uploadId, PropList),
+        PartIdList = lists:seq(1, 2),
+        PartResults = [{ok, _} = erlcloud_s3:upload_part(Bucket, Key, UploadId, PartNum, PartBin, [], S3Conf) || PartNum <- PartIdList],
+        ETagList = lists:zip(PartIdList, [proplists:get_value(etag, P) || {ok, P} <- PartResults]),
+        ok = erlcloud_s3:complete_multipart(Bucket, Key, UploadId, ETagList, [], S3Conf)
+    catch
+        ErrType:Cause ->
+            io:format("[ERROR] Multipart Upload failed due to ~p, ~p~n", [ErrType, Cause]),
+            halt()
+    end;
+run(?F_MP_UPLOAD_NORMAL_IN_PARALLEL, S3Conf) ->
+    Bucket = ?env_bucket(),
+    Key = gen_key_for_multipart("in_parallel"),
+    PartBin = crypto:strong_rand_bytes(10 * 1024 * 1024),
+    try
+        {ok, PropList} = erlcloud_s3:start_multipart(Bucket, Key, [], [], S3Conf),
+        UploadId = proplists:get_value(uploadId, PropList),
+        %% set the large number to make the race be likely to happen on the server side
+        PartIdList = lists:seq(1, 8),
+        Parent = self(),
+        PidList = [spawn(fun() ->
+                             {ok, Props} = erlcloud_s3:upload_part(Bucket, Key, UploadId, PartNum, PartBin, [], S3Conf),
+                             Parent ! {self(), PartNum, proplists:get_value(etag, Props)}
+                         end) || PartNum <- PartIdList],
+        ETagList = wait_for_children(PidList),
+        ok = erlcloud_s3:complete_multipart(Bucket, Key, UploadId, ETagList, [], S3Conf)
+    catch
+        ErrType:Cause ->
+            io:format("[ERROR] Multipart Upload failed due to ~p, ~p~n", [ErrType, Cause]),
+            halt()
+    end;
+run(?F_MP_UPLOAD_ABORT, S3Conf) ->
+    Bucket = ?env_bucket(),
+    Key = gen_key_for_multipart("abort"),
+    PartBin = crypto:strong_rand_bytes(10 * 1024 * 1024),
+    try
+        {ok, PropList} = erlcloud_s3:start_multipart(Bucket, Key, [], [], S3Conf),
+        UploadId = proplists:get_value(uploadId, PropList),
+        PartIdList = lists:seq(1, 2),
+        [{ok, _} = erlcloud_s3:upload_part(Bucket, Key, UploadId, PartNum, PartBin, [], S3Conf) || PartNum <- PartIdList],
+        ok = erlcloud_s3:abort_multipart(Bucket, Key, UploadId, [], [], S3Conf),
+        %% Confirm whether or not part objects have been removed as expected
+        AllKeys = [
+            lists:append([Bucket, "/", Key]),
+            lists:append([Bucket, "/", Key, "\n1"]),
+            lists:append([Bucket, "/", Key, "\n1\n1"]),
+            lists:append([Bucket, "/", Key, "\n1\n2"]),
+            lists:append([Bucket, "/", Key, "\n2"]),
+            lists:append([Bucket, "/", Key, "\n2\n1"]),
+            lists:append([Bucket, "/", Key, "\n2\n2"])
+        ],
+        %% Have to wait for aync delete bucket/directory queues consuming all messages
+        timer:sleep(timer:seconds(5)), %% for safe
+        watch_mq(),
+        Results = [begin
+                       {ok, Redundancies} = rpc:call(?env_manager(), leo_manager_api, whereis, [[Key4Chunk], true]),
+                       case lists:any(
+                           fun({_, not_found}) ->
+                                  true;
+                              ({_, Fields}) when is_list(Fields) ->
+                                  case proplists:get_value(del, Fields, 0) of
+                                      1 ->
+                                          true;
+                                      0 ->
+                                          false
+                                  end;
+                              (_Other) ->
+                                  false
+                       end, Redundancies) of
+                           true ->
+                               ok;
+                           false ->
+                               {error, Key4Chunk}
+                       end
+                   end || Key4Chunk <- AllKeys],
+        case lists:foldl(fun(ok, Acc) -> Acc;
+                            ({error, K}, Acc) -> [K|Acc]
+                         end, [], Results) of
+            [] ->
+                ok;
+            Garbages ->
+                io:format("[ERROR] Multipart Upload some part objects left. key:~p ~n", [Garbages]),
+                halt()
+        end
+    catch
+        ErrType:Cause ->
+            io:format("[ERROR] Multipart Upload failed due to ~p, ~p~n", [ErrType, Cause]),
+            halt()
+    end;
+run(?F_MP_UPLOAD_INVALID_COMPLETE, S3Conf) ->
+    Bucket = ?env_bucket(),
+    Key = gen_key_for_multipart("invalid_complete"),
+    PartBin = crypto:strong_rand_bytes(10 * 1024 * 1024),
+    try
+        %% Wrong UploadId
+        %% This test has not passed yet because leo_gateway has had a bug not returning the proper error code(404) according to the AWS S3 spec.
+        %% Reference: https://docs.aws.amazon.com/AmazonS3/latest/API/mpUploadComplete.html
+        {error, {http_error, 404, _, _}} = erlcloud_s3:complete_multipart(Bucket, Key, "no_exist", [1,12345678], [], S3Conf),
+
+        {ok, PropList} = erlcloud_s3:start_multipart(Bucket, Key, [], [], S3Conf),
+        UploadId = proplists:get_value(uploadId, PropList),
+        PartIdList = lists:seq(1, 2),
+        PartResults = [{ok, _} = erlcloud_s3:upload_part(Bucket, Key, UploadId, PartNum, PartBin, [], S3Conf) || PartNum <- PartIdList],
+        ETagList = lists:zip(PartIdList, [proplists:get_value(etag, P) || {ok, P} <- PartResults]),
+        %% Invalid part number
+        InvalidETagList = ETagList ++ [{3, "12345678"}],
+        %% Wrong UploadId
+        %% This test has not passed yet because leo_gateway has had a bug not returning the proper error code(400) according to the AWS S3 spec.
+        %% Reference: https://docs.aws.amazon.com/AmazonS3/latest/API/mpUploadComplete.html
+        {error, {http_error, 400, _, _}} = erlcloud_s3:complete_multipart(Bucket, Key, UploadId, InvalidETagList, [], S3Conf),
+        ok
+    catch
+        ErrType:Cause ->
+            io:format("[ERROR] Multipart Upload failed due to ~p, ~p~n", [ErrType, Cause]),
+            halt()
+    end;
 run(_F,_) ->
     ok.
+
+%% @private
+%% Waits for all processes uploading parts in parallel
+%% Returns the list of the tuple {PartNum, ETag} to use in multipart complete request later
+wait_for_children(PidList) ->
+    wait_for_children(PidList, []).
+
+wait_for_children([], Acc) ->
+    Acc;
+wait_for_children(PidList, Acc) ->
+    receive
+        {Pid, PartNum, ETag} ->
+            case lists:member(Pid, PidList) of
+                true ->
+                    wait_for_children(lists:delete(Pid, PidList), [{PartNum, ETag}|Acc]);
+                false ->
+                    wait_for_children(PidList, Acc)
+            end;
+        _ ->
+            wait_for_children(PidList, Acc)
+    end.
 
 %% ---------------------------------------------------------
 %% Inner Functions
@@ -141,6 +285,10 @@ gen_key_by_one_percent(Keys) ->
 gen_key(Index) ->
     lists:append(["test/", integer_to_list(Index)]).
 
+%% @doc Generate a key for multipart uploads
+%% @private
+gen_key_for_multipart(Suffix) when is_list(Suffix) ->
+    lists:append(["test/mp/", Suffix]).
 
 %% @doc Output progress
 %% @private
@@ -160,7 +308,7 @@ indicator(Index, Interval) ->
 rnd_key(NumOfKeys) ->
     gen_key(
       erlang:phash2(
-        erlang:crc32(crypto:rand_bytes(16)), NumOfKeys)).
+        erlang:crc32(crypto:strong_rand_bytes(16)), NumOfKeys)).
 
 
 %% @doc Make partion of processing units
@@ -251,7 +399,7 @@ put_object_1(_, From, Ref, Start, End) when Start > End ->
 put_object_1(Conf, From, Ref, Start, End) ->
     indicator(Start),
     Key = gen_key(Start),
-    Val = crypto:rand_bytes(16),
+    Val = crypto:strong_rand_bytes(16),
     case catch erlcloud_s3:put_object(?env_bucket(), Key, Val, [], Conf) of
         {'EXIT',_Cause} ->
             timer:sleep(timer:seconds(1)),
