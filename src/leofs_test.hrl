@@ -87,12 +87,14 @@
 
 
 %% TEST Scenatios:
--define(F_PUT_OBJ,           put_objects).
--define(F_PUT_ZERO_BYTE_OBJ, put_zero_byte_objects).
+-define(F_PUT_OBJ,              put_objects).
+-define(F_PUT_ZERO_BYTE_OBJ,    put_zero_byte_objects).
+-define(F_PUT_INCONSISTENT_OBJ, put_inconsistent_objects).
 -define(F_GET_OBJ,           get_objects).
 -define(F_GET_OBJ_NOT_FOUND, get_objects_not_found).
 -define(F_DEL_OBJ,           del_objects).
 -define(F_CREATE_BUCKET,     create_bucket).
+-define(F_DELETE_BUCKET,     delete_bucket).
 -define(F_CHECK_REPLICAS,    check_redundancies).
 -define(F_ATTACH_NODE,       attach_node).
 -define(F_TAKEOVER,          takeover).
@@ -106,17 +108,20 @@
 -define(F_DIAGNOSIS,         diagnosis).
 -define(F_REMOVE_AVS,        remove_avs).
 -define(F_RECOVER_NODE,      recover_node).
+-define(F_SCRUB_CLUSTER,     scrub_cluster).
 -define(F_MP_UPLOAD_NORMAL,             mp_upload_normal).
 -define(F_MP_UPLOAD_NORMAL_IN_PARALLEL, mp_upload_normal_in_parallel).
 -define(F_MP_UPLOAD_ABORT,              mp_upload_abort).
 -define(F_MP_UPLOAD_INVALID_COMPLETE,   mp_upload_invalid_complete).
 
--define(SC_ITEM_PUT_OBJ,           {?F_PUT_OBJ,           "put objects"}).
--define(SC_ITEM_PUT_ZERO_BYTE_OBJ, {?F_PUT_ZERO_BYTE_OBJ, "put zero byte objects"}).
+-define(SC_ITEM_PUT_OBJ,              {?F_PUT_OBJ,              "put objects"}).
+-define(SC_ITEM_PUT_ZERO_BYTE_OBJ,    {?F_PUT_ZERO_BYTE_OBJ,    "put zero byte objects"}).
+-define(SC_ITEM_PUT_INCONSISTENT_OBJ, {?F_PUT_INCONSISTENT_OBJ, "put inconsistent objects"}).
 -define(SC_ITEM_GET_OBJ,           {?F_GET_OBJ,           "get objects"}).
 -define(SC_ITEM_GET_OBJ_NOT_FOUND, {?F_GET_OBJ_NOT_FOUND, "get objects_not_found"}).
 -define(SC_ITEM_DEL_OBJ,           {?F_DEL_OBJ,        "remove objects"}).
 -define(SC_ITEM_CREATE_BUCKET,     {?F_CREATE_BUCKET,  "create a bucket"}).
+-define(SC_ITEM_DELETE_BUCKET,     {?F_DELETE_BUCKET,  "delete a bucket"}).
 -define(SC_ITEM_CHECK_REPLICAS,    {?F_CHECK_REPLICAS, "check redundancies of replicas"}).
 -define(SC_ITEM_ATTACH_NODE,       {?F_ATTACH_NODE,    "attach a node"}).
 -define(SC_ITEM_TAKEOVER,          {?F_TAKEOVER,       "takeover"}).
@@ -130,6 +135,7 @@
 -define(SC_ITEM_DIAGNOSIS,         {?F_DIAGNOSIS,      "execute data-diagnosis"}).
 -define(SC_ITEM_REMOVE_AVS,        {?F_REMOVE_AVS,     "remove avs of a node"}).
 -define(SC_ITEM_RECOVER_NODE,      {?F_RECOVER_NODE,   "recover data of a node"}).
+-define(SC_ITEM_SCRUB_CLUSTER,     {?F_SCRUB_CLUSTER,  "scrub the whole cluster"}).
 -define(SC_ITEM_MP_UPLOAD_NORMAL,  {?F_MP_UPLOAD_NORMAL, "multipart upload"}).
 -define(SC_ITEM_MP_UPLOAD_NORMAL_IN_PARALLEL, {?F_MP_UPLOAD_NORMAL_IN_PARALLEL, "multipart upload in parallel"}).
 -define(SC_ITEM_MP_UPLOAD_ABORT, {?F_MP_UPLOAD_ABORT, "abort multipart upload"}).
@@ -226,6 +232,16 @@
                                     ?SC_ITEM_RECOVER_NODE,
                                     ?SC_ITEM_WATCH_MQ,
                                     ?SC_ITEM_GET_OBJ,
+                                    ?SC_ITEM_CHECK_REPLICAS
+                                   ]}).
+
+%% scrub cluster
+-define(SCENARIO_7, {"SCENARIO-7", [?SC_ITEM_DELETE_BUCKET,        %% NEW: Reset all stored files
+                                    ?SC_ITEM_WATCH_MQ,             %% Wait for getting delete-bucket finished
+                                    ?SC_ITEM_CREATE_BUCKET,        %% Re-create the bucket for testing the scrub case
+                                    ?SC_ITEM_GET_OBJ_NOT_FOUND,    %% Confirm there is no files under the bucket, just in case
+                                    ?SC_ITEM_PUT_INCONSISTENT_OBJ, %% NEW: Insert files with some replica lacking
+                                    ?SC_ITEM_SCRUB_CLUSTER,        %% NEW: Scrub the cluster using recover-consistency on all storage nodes
                                     ?SC_ITEM_CHECK_REPLICAS
                                    ]}).
 

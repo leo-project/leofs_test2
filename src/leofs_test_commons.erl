@@ -40,6 +40,9 @@
 run(?F_CREATE_BUCKET, S3Conf) ->
     catch erlcloud_s3:create_bucket(?env_bucket(), S3Conf),
     ok;
+run(?F_DELETE_BUCKET, S3Conf) ->
+    catch erlcloud_s3:delete_bucket(?env_bucket(), S3Conf),
+    ok;
 run(?F_PUT_OBJ, S3Conf) ->
     Keys = ?env_keys(),
     ok = put_object(S3Conf, Keys),
@@ -47,6 +50,10 @@ run(?F_PUT_OBJ, S3Conf) ->
 run(?F_PUT_ZERO_BYTE_OBJ, S3Conf) ->
     Keys = ?env_keys(),
     ok = put_zero_byte_object(S3Conf, Keys),
+    ok;
+run(?F_PUT_INCONSISTENT_OBJ, S3Conf) ->
+    Keys = ?env_keys(),
+    ok = put_inconsistent_object(S3Conf, Keys),
     ok;
 run(?F_GET_OBJ, S3Conf) ->
     Keys = ?env_keys(),
@@ -117,6 +124,9 @@ run(?F_REMOVE_AVS,_S3Conf) ->
     ok;
 run(?F_RECOVER_NODE,_S3Conf) ->
     ok = recover_node(?RECOVER_NODE),
+    ok;
+run(?F_SCRUB_CLUSTER,_S3Conf) ->
+    ok = recover_consistency(),
     ok;
 %% MP(multipart upload) related
 run(?F_MP_UPLOAD_NORMAL, S3Conf) ->
@@ -385,6 +395,10 @@ put_zero_byte_object(Conf, Keys) ->
             put_zero_byte_object(Conf, Keys - 1)
     end.
 
+put_inconsistent_object(Conf, Keys) when Keys > ?UNIT_OF_PARTION ->
+    do_concurrent_exec(Conf, Keys, fun put_inconsistent_object_1/5);
+put_inconsistent_object(Conf, Keys) ->
+    put_inconsistent_object_1(Conf, undefined, undefined, 1, Keys).
 
 %% @private
 put_object_1(_, From, Ref, Start, End) when Start > End ->
@@ -408,6 +422,30 @@ put_object_1(Conf, From, Ref, Start, End) ->
             put_object_1(Conf, From, Ref, Start + 1, End)
     end.
 
+put_inconsistent_object_1(_, From, Ref, Start, End) when Start > End ->
+    case (From == undefined andalso
+          Ref  == undefined) of
+        true ->
+            ?msg_progress_finished(),
+            ok;
+        false ->
+            erlang:send(From, {Ref, ok})
+    end;
+put_inconsistent_object_1(Conf, From, Ref, Start, End) ->
+    indicator(Start),
+    Key = gen_key(Start),
+    Key4LeoFS = list_to_binary(lists:append([?env_bucket(), "/", Key])),
+    Val = crypto:strong_rand_bytes(16),
+    Nodes = get_storage_nodes(),
+    Node = lists:nth(rand:uniform(length(Nodes)), Nodes),
+    case rpc:call(Node, leo_storage_handler_object,
+                  debug_put, [Key4LeoFS, Val, 1]) of
+        {ok, _} ->
+            put_inconsistent_object_1(Conf, From, Ref, Start + 1, End);
+        _ ->
+            timer:sleep(timer:seconds(1)),
+            put_inconsistent_object_1(Conf, From, Ref, Start, End)
+    end.
 
 %% @doc Retrieve objects
 %% @private
@@ -874,10 +912,25 @@ remove_avs(Node) ->
 %% @doc Recover data of the node
 %% @private
 recover_node(Node) ->
-    Ret = case recover_node_1(Node, 0) of
+    recover(Node, "node").
+
+recover_consistency() ->
+    Nodes = get_storage_nodes(),
+    recover_consistency(Nodes).
+
+recover_consistency([]) ->
+    ok;
+recover_consistency([H|Rest]) ->
+    ok = recover(H, "consistency"),
+    timer:sleep(timer:seconds(5)), %% for safe
+    watch_mq(),
+    recover_consistency(Rest).
+
+recover(Node, Type) ->
+    Ret = case recover_1(Node, 0) of
               ok ->
                   case rpc:call(?env_manager(), leo_manager_api,
-                                recover, ["node", Node, true]) of
+                                recover, [Type, Node, true]) of
                       ok ->
                           ok;
                       Error ->
@@ -891,20 +944,20 @@ recover_node(Node) ->
         ok ->
             ok;
         _ ->
-            ?msg_error(["recover-node failure", Node]),
+            io:format("[ERROR] recover-~s failure. node:~p~n", [Type, Node]),
             halt()
     end.
 
 %% @private
-recover_node_1(_Node, ?THRESHOLD_ERROR_TIMES) ->
+recover_1(_Node, ?THRESHOLD_ERROR_TIMES) ->
     {error, over_threshold_error_times};
-recover_node_1(Node, Times) ->
+recover_1(Node, Times) ->
     case check_state_of_node(Node, ?STATE_RUNNING) of
         ok ->
             ok;
         {error, not_yet} ->
             timer:sleep(timer:seconds(10)),
-            recover_node_1(Node, Times + 1);
+            recover_1(Node, Times + 1);
         Other ->
             Other
     end.
