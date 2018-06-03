@@ -141,13 +141,16 @@ run('5', S3Conf) ->
     ok = leofs_test_scenario:run(?SCENARIO_5, S3Conf);
 run('6', S3Conf) ->
     ok = leofs_test_scenario:run(?SCENARIO_6, S3Conf);
+run('7', S3Conf) ->
+    ok = leofs_test_scenario:run(?SCENARIO_7, S3Conf);
 run('all', S3Conf) ->
     ok = leofs_test_scenario:run(?SCENARIO_1, S3Conf),
     ok = leofs_test_scenario:run(?SCENARIO_2, S3Conf),
     ok = leofs_test_scenario:run(?SCENARIO_3, S3Conf),
     ok = leofs_test_scenario:run(?SCENARIO_4, S3Conf),
     ok = leofs_test_scenario:run(?SCENARIO_5, S3Conf),
-    ok = leofs_test_scenario:run(?SCENARIO_6, S3Conf);
+    ok = leofs_test_scenario:run(?SCENARIO_6, S3Conf),
+    ok = leofs_test_scenario:run(?SCENARIO_7, S3Conf);
 run(Scenario, _S3Conf) ->
     io:format(" The specified scenario [~s] not found.~n", [Scenario]).
 
