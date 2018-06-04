@@ -50,7 +50,7 @@
 -define(msg_start_test(_Test, _Desc), io:format("~n::: TEST: ~w (~s)::::~n", [_Test, _Desc])).
 -define(msg_finished(_Sec),           io:format("~n::: Finished (~wsec) :::~n", [_Sec])).
 -define(msg_error(Args),              io:format("[ERROR] ~p~n", [Args])).
--define(msg_progress_ongoing(),       io:format("~s", ["-"])).
+-define(msg_progress_ongoing(),       io:format("~s", ["."])).
 -define(msg_progress_finished(),      io:format("~s", ["|"])).
 
 -define(env_manager(),

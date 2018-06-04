@@ -2,7 +2,7 @@
 %%
 %% LeoFS
 %%
-%% Copyright (c) 2012-2015 Rakuten, Inc.
+%% Copyright (c) 2012-2018 Rakuten, Inc.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -156,8 +156,8 @@ run(?F_MP_UPLOAD_NORMAL_IN_PARALLEL, S3Conf) ->
         PartIdList = lists:seq(1, 8),
         Parent = self(),
         PidList = [spawn(fun() ->
-                             {ok, Props} = erlcloud_s3:upload_part(Bucket, Key, UploadId, PartNum, PartBin, [], S3Conf),
-                             Parent ! {self(), PartNum, proplists:get_value(etag, Props)}
+                                 {ok, Props} = erlcloud_s3:upload_part(Bucket, Key, UploadId, PartNum, PartBin, [], S3Conf),
+                                 Parent ! {self(), PartNum, proplists:get_value(etag, Props)}
                          end) || PartNum <- PartIdList],
         ETagList = wait_for_children(PidList),
         ok = erlcloud_s3:complete_multipart(Bucket, Key, UploadId, ETagList, [], S3Conf)
@@ -177,33 +177,32 @@ run(?F_MP_UPLOAD_ABORT, S3Conf) ->
         [{ok, _} = erlcloud_s3:upload_part(Bucket, Key, UploadId, PartNum, PartBin, [], S3Conf) || PartNum <- PartIdList],
         ok = erlcloud_s3:abort_multipart(Bucket, Key, UploadId, [], [], S3Conf),
         %% Confirm whether or not part objects have been removed as expected
-        AllKeys = [
-            lists:append([Bucket, "/", Key]),
-            lists:append([Bucket, "/", Key, "\n1"]),
-            lists:append([Bucket, "/", Key, "\n1\n1"]),
-            lists:append([Bucket, "/", Key, "\n1\n2"]),
-            lists:append([Bucket, "/", Key, "\n2"]),
-            lists:append([Bucket, "/", Key, "\n2\n1"]),
-            lists:append([Bucket, "/", Key, "\n2\n2"])
-        ],
+        AllKeys = [lists:append([Bucket, "/", Key]),
+                   lists:append([Bucket, "/", Key, "\n1"]),
+                   lists:append([Bucket, "/", Key, "\n1\n1"]),
+                   lists:append([Bucket, "/", Key, "\n1\n2"]),
+                   lists:append([Bucket, "/", Key, "\n2"]),
+                   lists:append([Bucket, "/", Key, "\n2\n1"]),
+                   lists:append([Bucket, "/", Key, "\n2\n2"])
+                  ],
         %% Have to wait for aync delete bucket/directory queues consuming all messages
         timer:sleep(timer:seconds(5)), %% for safe
         watch_mq(),
         Results = [begin
                        {ok, Redundancies} = rpc:call(?env_manager(), leo_manager_api, whereis, [[Key4Chunk], true]),
                        case lists:any(
-                           fun({_, not_found}) ->
-                                  true;
-                              ({_, Fields}) when is_list(Fields) ->
-                                  case proplists:get_value(del, Fields, 0) of
-                                      1 ->
-                                          true;
-                                      0 ->
-                                          false
-                                  end;
-                              (_Other) ->
-                                  false
-                       end, Redundancies) of
+                              fun({_, not_found}) ->
+                                      true;
+                                 ({_, Fields}) when is_list(Fields) ->
+                                      case proplists:get_value(del, Fields, 0) of
+                                          1 ->
+                                              true;
+                                          0 ->
+                                              false
+                                      end;
+                                 (_Other) ->
+                                      false
+                              end, Redundancies) of
                            true ->
                                ok;
                            false ->
@@ -790,42 +789,64 @@ get_storage_nodes() ->
 %% @doc Watch mq-stats
 %% @private
 watch_mq() ->
+    watch_mq(1).
+watch_mq(Times) ->
+    io:format("~n        #~w", [Times]),
     Nodes = get_storage_nodes(),
-    watch_mq_1(Nodes).
+    watch_mq_1(Nodes, [], Times).
 
-watch_mq_1([]) ->
-    io:format("~n"),
-    timer:sleep(timer:seconds(5)),
-    ok;
-watch_mq_1([Node|Rest]) ->
-    io:format("~n            * node:~p", [Node]),
+watch_mq_1([], Acc, Times) ->
+    case (length(Acc) > 0) of
+        true ->
+            timer:sleep(timer:seconds(5)),
+            watch_mq(Times + 1);
+        false ->
+            ok
+    end;
+watch_mq_1([Node|Rest], Acc, Times) ->
+    io:format("~n            * ~p:", [Node]),
     case rpc:call(?env_manager(),
                   leo_manager_api, mq_stats, [Node]) of
         {ok, RetL} ->
-            case watch_mq_2(RetL) of
-                ok ->
-                    watch_mq_1(Rest);
-                _ ->
-                    timer:sleep(timer:seconds(5)),
-                    watch_mq()
-            end;
+            Acc_1 = case watch_mq_2(RetL, []) of
+                        ok ->
+                            Acc;
+                        _ ->
+                            [Node|Acc]
+                    end,
+            watch_mq_1(Rest, Acc_1, Times);
         _ ->
             ?msg_error("Could not retrieve mq-state of the node"),
             halt()
     end.
 
-watch_mq_2([]) ->
+watch_mq_2([], []) ->
+    io:format("[N/A]", []),
     ok;
+watch_mq_2([], Acc) ->
+    io:format("[", []),
+    lists:foldl(
+      fun({Id, Num}, I)  ->
+              case (I < length(Acc)) of
+                  true ->
+                      io:format("{~p,~p}, ", [Id, Num]);
+                  false ->
+                      io:format("{~p,~p}", [Id, Num])
+              end,
+              I + 1
+      end, 1, Acc),
+    io:format("]", []),
+    still_running;
 watch_mq_2([#mq_state{id = Id,
-                      state = Stats}|Rest]) ->
+                      state = Stats}|Rest], Acc) ->
     NumOfMsgs = leo_misc:get_value('consumer_num_of_msgs', Stats, 0),
-    io:format(", ~p:~p", [Id, NumOfMsgs]),
-    case (NumOfMsgs == 0) of
-        true ->
-            watch_mq_2(Rest);
-        false ->
-            still_running
-    end.
+    Acc_1 = case (NumOfMsgs < 1) of
+                true ->
+                    Acc;
+                false ->
+                    [{Id, NumOfMsgs}|Acc]
+            end,
+    watch_mq_2(Rest, Acc_1).
 
 
 %% @doc Execute data-compcation
