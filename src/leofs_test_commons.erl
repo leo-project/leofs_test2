@@ -122,6 +122,9 @@ run(?F_COMPACTION,_S3Conf) ->
 run(?F_REMOVE_AVS,_S3Conf) ->
     ok = remove_avs(?RECOVER_NODE),
     ok;
+run(?F_RECOVER_FILE,_S3Conf) ->
+    ok = recover_file(),
+    ok;
 run(?F_RECOVER_NODE,_S3Conf) ->
     ok = recover_node(?RECOVER_NODE),
     ok;
@@ -298,6 +301,11 @@ gen_key(Index) ->
 %% @private
 gen_key_for_multipart(Suffix) when is_list(Suffix) ->
     lists:append(["test/mp/", Suffix]).
+
+%% @doc Generate a key for recover-file
+%% @private
+gen_key_for_recover_file(Suffix) when is_list(Suffix) ->
+    lists:append([?env_bucket(), "/test/rf/", Suffix]).
 
 %% @doc Output progress
 %% @private
@@ -981,4 +989,69 @@ recover_1(Node, Times) ->
             recover_1(Node, Times + 1);
         Other ->
             Other
+    end.
+
+%% @doc Recover files with various replicas conditions
+%% @private
+recover_file() ->
+    Replicas = application:get_env(?APP, ?PROP_REPLICAS, ?NUM_OF_REPLICAS),
+    %% the combinations of the inconsistency
+    TestSuites = case Replicas of
+                     2 ->
+                         [
+                          {"lack_primary", [false, true]},
+                          {"lack_secondary", [true, false]}
+                         ];
+                     3 ->
+                         [
+                          {"repl_100", [true, false, false]},
+                          {"repl_110", [true, true, false]},
+                          {"repl_101", [true, false, true]},
+                          {"repl_010", [false, true, false]},
+                          {"repl_011", [false, true, true]},
+                          {"repl_001", [false, false, true]}
+                         ];
+                     _ ->
+                        io:format("[ERROR] recover-file failure due to the unsupportred num_of_replicas replicas:~p~n", [Replicas]),
+                        halt()
+                 end,
+    %% PUT
+    [put_inconsistent_object_with_fine_grained_ctrl(Suffix, ReplicaState) || {Suffix, ReplicaState} <- TestSuites],
+    ok = recover_consistency(),
+    timer:sleep(timer:seconds(5)), %% for safe
+    watch_mq(),
+    [check_redundancies_2(gen_key_for_recover_file(Suffix)) || {Suffix, _} <- TestSuites],
+    %% DELETE
+    [delete_inconsistent_object_with_fine_grained_ctrl(Suffix, ReplicaState) || {Suffix, ReplicaState} <- TestSuites],
+    ok = recover_consistency(),
+    timer:sleep(timer:seconds(5)), %% for safe
+    watch_mq(),
+    [check_redundancies_2(gen_key_for_recover_file(Suffix)) || {Suffix, _} <- TestSuites],
+    ok.
+
+put_inconsistent_object_with_fine_grained_ctrl(Suffix, ReplicaState) ->
+    Key = list_to_binary(gen_key_for_recover_file(Suffix)),
+    Val = crypto:strong_rand_bytes(16),
+    Nodes = get_storage_nodes(),
+    Node = lists:nth(rand:uniform(length(Nodes)), Nodes),
+    case rpc:call(Node, leo_storage_handler_object,
+                  debug_put, [Key, Val, ReplicaState]) of
+        {ok, _} ->
+            ok;
+        Error ->
+            io:format("[ERROR] recover-file RPC failure. node:~p key:~p err:~p~n", [Node, Key, Error]),
+            halt()
+    end.
+
+delete_inconsistent_object_with_fine_grained_ctrl(Suffix, ReplicaState) ->
+    Key = list_to_binary(gen_key_for_recover_file(Suffix)),
+    Nodes = get_storage_nodes(),
+    Node = lists:nth(rand:uniform(length(Nodes)), Nodes),
+    case rpc:call(Node, leo_storage_handler_object,
+                  debug_delete, [Key, ReplicaState]) of
+        {ok, _} ->
+            ok;
+        Error ->
+            io:format("[ERROR] recover-file RPC failure. node:~p key:~p err:~p~n", [Node, Key, Error]),
+            halt()
     end.
