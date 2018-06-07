@@ -107,6 +107,7 @@
 -define(F_COMPACTION,        compaction).
 -define(F_DIAGNOSIS,         diagnosis).
 -define(F_REMOVE_AVS,        remove_avs).
+-define(F_RECOVER_FILE,      recover_file).
 -define(F_RECOVER_NODE,      recover_node).
 -define(F_SCRUB_CLUSTER,     scrub_cluster).
 -define(F_MP_UPLOAD_NORMAL,             mp_upload_normal).
@@ -134,6 +135,7 @@
 -define(SC_ITEM_COMPACTION,        {?F_COMPACTION,     "execute data-compaction"}).
 -define(SC_ITEM_DIAGNOSIS,         {?F_DIAGNOSIS,      "execute data-diagnosis"}).
 -define(SC_ITEM_REMOVE_AVS,        {?F_REMOVE_AVS,     "remove avs of a node"}).
+-define(SC_ITEM_RECOVER_FILE,      {?F_RECOVER_FILE,   "recover data of a file"}).
 -define(SC_ITEM_RECOVER_NODE,      {?F_RECOVER_NODE,   "recover data of a node"}).
 -define(SC_ITEM_SCRUB_CLUSTER,     {?F_SCRUB_CLUSTER,  "scrub the whole cluster"}).
 -define(SC_ITEM_MP_UPLOAD_NORMAL,  {?F_MP_UPLOAD_NORMAL, "multipart upload"}).
@@ -156,6 +158,7 @@
                    ?SC_ITEM_WATCH_MQ,
                    ?SC_ITEM_COMPACTION,
                    ?SC_ITEM_REMOVE_AVS,
+                   ?SC_ITEM_RECOVER_FILE,
                    ?SC_ITEM_RECOVER_NODE,
                    ?SC_ITEM_MP_UPLOAD_NORMAL,
                    ?SC_ITEM_MP_UPLOAD_NORMAL_IN_PARALLEL,
@@ -172,6 +175,7 @@
                                      ]}).
 
 -define(SCENARIO_1, {"SCENARIO-1", [?SC_ITEM_CREATE_BUCKET,
+                                    ?SC_ITEM_RECOVER_FILE,
                                     ?SC_ITEM_GET_OBJ_NOT_FOUND,
                                     ?SC_ITEM_PUT_ZERO_BYTE_OBJ,
                                     ?SC_ITEM_GET_OBJ,
