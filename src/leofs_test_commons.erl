@@ -42,6 +42,7 @@ run(?F_CREATE_BUCKET, S3Conf) ->
     ok;
 run(?F_DELETE_BUCKET, S3Conf) ->
     catch erlcloud_s3:delete_bucket(?env_bucket(), S3Conf),
+    timer:sleep(timer:seconds(10)),
     ok;
 run(?F_PUT_OBJ, S3Conf) ->
     Keys = ?env_keys(),
@@ -98,7 +99,7 @@ run(?F_DETACH_NODE,_S3Conf) ->
     ok;
 run(?F_SUSPEND_NODE,_S3Conf) ->
     ok = suspend_node(?SUSPEND_NODE),
-    timer:sleep(timer:seconds(15)),
+    timer:sleep(timer:seconds(5)),
     ok;
 run(?F_RESUME_NODE,_S3Conf) ->
     ok = resume_node(?RESUME_NODE),
@@ -108,10 +109,11 @@ run(?F_START_NODE,_S3Conf) ->
     ok;
 run(?F_STOP_NODE,_S3Conf) ->
     ok = stop_node(?SUSPEND_NODE),
-    timer:sleep(timer:seconds(15)),
+    timer:sleep(timer:seconds(10)),
     ok;
 run(?F_WATCH_MQ,_S3Conf) ->
     ok = watch_mq(),
+    timer:sleep(timer:seconds(5)),
     ok;
 run(?F_DIAGNOSIS,_S3Conf) ->
     ok = diagnosis(),
@@ -698,6 +700,7 @@ detach_node(Node) ->
 rebalance() ->
     case rpc:call(?env_manager(), leo_manager_api, rebalance, [null]) of
         ok ->
+            timer:sleep(timer:seconds(15)),
             ok;
         _Error ->
             ?msg_error("Fail rebalance (detach-node)"),
@@ -951,7 +954,6 @@ recover_consistency([]) ->
     ok;
 recover_consistency([H|Rest]) ->
     ok = recover(H, "consistency"),
-    timer:sleep(timer:seconds(5)), %% for safe
     watch_mq(),
     recover_consistency(Rest).
 
@@ -971,6 +973,7 @@ recover(Node, Type) ->
 
     case Ret of
         ok ->
+            timer:sleep(timer:seconds(10)),
             ok;
         _ ->
             io:format("[ERROR] recover-~s failure. node:~p~n", [Type, Node]),

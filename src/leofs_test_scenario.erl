@@ -36,10 +36,8 @@ run({ScenarioName, Items}, S3Conf) ->
 
 %% @private
 run_1([],_S3Conf) ->
-    timer:sleep(timer:seconds(5)),
     ok;
 run_1([{F, Description}|Rest], S3Conf) ->
     io:format("~n   * ~w (~s)", [F, Description]),
-    timer:sleep(timer:seconds(10)),
     ok = leofs_test_commons:run(F, S3Conf),
     run_1(Rest, S3Conf).
