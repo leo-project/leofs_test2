@@ -27,6 +27,8 @@
 -define(S3_HOST, "localhost").
 -define(S3_PORT, 8080).
 
+-define(LEOFS_ADM_JSON_PORT, 10020).
+
 -define(PROP_MANAGER,   'manager').
 -define(PROP_COOKIE,    'cookie').
 -define(PROP_BUCKET,    'bucket').
@@ -110,6 +112,8 @@
 -define(F_RECOVER_FILE,      recover_file).
 -define(F_RECOVER_NODE,      recover_node).
 -define(F_SCRUB_CLUSTER,     scrub_cluster).
+-define(F_MQ_SUSPEND_QUEUE,   mq_suspend_queue).
+-define(F_MQ_RESUME_QUEUE,    mq_resume_queue).
 -define(F_MP_UPLOAD_NORMAL,             mp_upload_normal).
 -define(F_MP_UPLOAD_NORMAL_IN_PARALLEL, mp_upload_normal_in_parallel).
 -define(F_MP_UPLOAD_ABORT,              mp_upload_abort).
@@ -138,6 +142,8 @@
 -define(SC_ITEM_RECOVER_FILE,      {?F_RECOVER_FILE,   "recover data of a file"}).
 -define(SC_ITEM_RECOVER_NODE,      {?F_RECOVER_NODE,   "recover data of a node"}).
 -define(SC_ITEM_SCRUB_CLUSTER,     {?F_SCRUB_CLUSTER,  "scrub the whole cluster"}).
+-define(SC_ITEM_MQ_SUSPEND_QUEUE,  {?F_MQ_SUSPEND_QUEUE, "suspend a process consuming a message queue"}).
+-define(SC_ITEM_MQ_RESUME_QUEUE,   {?F_MQ_RESUME_QUEUE,  "resume a process consuming a message queue"}).
 -define(SC_ITEM_MP_UPLOAD_NORMAL,  {?F_MP_UPLOAD_NORMAL, "multipart upload"}).
 -define(SC_ITEM_MP_UPLOAD_NORMAL_IN_PARALLEL, {?F_MP_UPLOAD_NORMAL_IN_PARALLEL, "multipart upload in parallel"}).
 -define(SC_ITEM_MP_UPLOAD_ABORT, {?F_MP_UPLOAD_ABORT, "abort multipart upload"}).
@@ -160,6 +166,8 @@
                    ?SC_ITEM_REMOVE_AVS,
                    ?SC_ITEM_RECOVER_FILE,
                    ?SC_ITEM_RECOVER_NODE,
+                   ?SC_ITEM_MQ_SUSPEND_QUEUE,
+                   ?SC_ITEM_MQ_RESUME_QUEUE,
                    ?SC_ITEM_MP_UPLOAD_NORMAL,
                    ?SC_ITEM_MP_UPLOAD_NORMAL_IN_PARALLEL,
                    ?SC_ITEM_MP_UPLOAD_ABORT,
@@ -193,6 +201,8 @@
 %% detach a node
 -define(SCENARIO_2, {"SCENARIO-2", [?SC_ITEM_PUT_OBJ,
                                     ?SC_ITEM_DETACH_NODE,
+                                    ?SC_ITEM_MQ_SUSPEND_QUEUE,
+                                    ?SC_ITEM_MQ_RESUME_QUEUE,
                                     ?SC_ITEM_WATCH_MQ,
                                     ?SC_ITEM_GET_OBJ,
                                     ?SC_ITEM_CHECK_REPLICAS

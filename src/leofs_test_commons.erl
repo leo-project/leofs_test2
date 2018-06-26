@@ -35,6 +35,11 @@
 -define(RECOVER_NODE,  'storage_2@127.0.0.1').
 -define(TAKEOVER_NODE, 'storage_4@127.0.0.1').
 
+%% MQ related
+-define(MQ_QUEUE_SUSPENDED, "leo_per_object_queue").
+-define(MQ_STATE_SUSPENDING_FORCE, "suspending(force)").
+-define(MQ_STATE_IDLING, "idling").
+
 
 %% @doc Execute tests
 run(?F_CREATE_BUCKET, S3Conf) ->
@@ -132,6 +137,15 @@ run(?F_RECOVER_NODE,_S3Conf) ->
     ok;
 run(?F_SCRUB_CLUSTER,_S3Conf) ->
     ok = recover_consistency(),
+    ok;
+%% MQ(Message Queue - leo_mq) related
+run(?F_MQ_SUSPEND_QUEUE,_S3Conf) ->
+    ok = mq_suspend_queue(atom_to_list(?SUSPEND_NODE), ?MQ_QUEUE_SUSPENDED),
+    ok = mq_wait_until(atom_to_list(?SUSPEND_NODE), ?MQ_QUEUE_SUSPENDED, ?MQ_STATE_SUSPENDING_FORCE),
+    ok;
+run(?F_MQ_RESUME_QUEUE,_S3Conf) ->
+    ok = mq_resume_queue(atom_to_list(?RESUME_NODE), ?MQ_QUEUE_SUSPENDED),
+    ok = mq_wait_until(atom_to_list(?RESUME_NODE), ?MQ_QUEUE_SUSPENDED, ?MQ_STATE_IDLING),
     ok;
 %% MP(multipart upload) related
 run(?F_MP_UPLOAD_NORMAL, S3Conf) ->
@@ -1057,4 +1071,39 @@ delete_inconsistent_object_with_fine_grained_ctrl(Suffix, ReplicaState) ->
         Error ->
             io:format("[ERROR] recover-file RPC failure. node:~p key:~p err:~p~n", [Node, Key, Error]),
             halt()
+    end.
+
+
+%% @doc MQ related
+%% @private
+mq_suspend_queue(Node, Queue) ->
+    {ok, _} = libleofs:mq_suspend(?S3_HOST, ?LEOFS_ADM_JSON_PORT, Node, Queue),
+    ok.
+mq_resume_queue(Node, Queue) ->
+    {ok, _} = libleofs:mq_resume(?S3_HOST, ?LEOFS_ADM_JSON_PORT, Node, Queue),
+    ok.
+mq_wait_until(Node, Queue, StateToBe) ->
+    mq_wait_until(Node, list_to_binary(Queue), list_to_binary(StateToBe), 0).
+
+mq_wait_until(Node, Queue, StateToBe, ?THRESHOLD_ERROR_TIMES) ->
+    io:format("Timeout to wait for node:~p queue:~p transiting to ~p~n", [Node, Queue, StateToBe]),
+    halt();
+mq_wait_until(Node, Queue, StateToBe, Retry) ->
+    {ok, [{<<"mq_stats">>, QueueList}]} = libleofs:mq_stats(?S3_HOST, ?LEOFS_ADM_JSON_PORT, Node),
+    Pred = fun(T) ->
+               Id = proplists:get_value(<<"id">>, T),
+               case Id of
+                   Queue ->
+                       true;
+                   _ ->
+                       false
+               end
+           end,
+    [H|_] = lists:filter(Pred, QueueList),
+    case proplists:get_value(<<"state">>, H) of
+        StateToBe ->
+            ok;
+        _Other ->
+            timer:sleep(timer:seconds(5)),
+            mq_wait_until(Node, Queue, StateToBe, Retry + 1)
     end.

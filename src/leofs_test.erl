@@ -77,6 +77,8 @@ main(Args) ->
                          "deps/eini/ebin",
                          "deps/jsx/ebin",
                          "deps/getopt/ebin",
+                         "deps/lager/ebin",
+                         "deps/libleofs/ebin",
                          "deps/leo_commons/ebin"
                         ]),
     ok = application:start(crypto),
