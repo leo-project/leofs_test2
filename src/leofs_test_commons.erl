@@ -908,10 +908,21 @@ compaction_1([]) ->
 compaction_1([Node|Rest]) ->
     case rpc:call(?env_manager(), leo_manager_api, compact, ["start", Node, 'all', 1]) of
         ok ->
+            case Rest of
+                [] ->
+                    %% do suspend/resume test
+                    {ok, _} = libleofs:compact_suspend(?S3_HOST, ?LEOFS_ADM_JSON_PORT, atom_to_list(Node)),
+                    ok = compact_wait_until(Node, ?ST_SUSPENDING),
+                    timer:sleep(timer:seconds(5)),
+                    {ok, _} = libleofs:compact_resume(?S3_HOST, ?LEOFS_ADM_JSON_PORT, atom_to_list(Node)),
+                    ok = compact_wait_until(Node, ?ST_RUNNING);
+                _Other ->
+                    nop
+            end,
             ok = compaction_2(Node),
             compaction_1(Rest);
-        _Other ->
-            ?msg_error("Could not execute data-compaction"),
+        Error ->
+            ?msg_error(["Could not execute data-compaction. error:", Error]),
             halt()
     end.
 
@@ -1107,4 +1118,20 @@ mq_wait_until(Node, Queue, StateToBe, Retry) ->
         false ->
             timer:sleep(timer:seconds(5)),
             mq_wait_until(Node, Queue, StateToBe, Retry + 1)
+    end.
+
+compact_wait_until(Node, StateToBe) ->
+    compact_wait_until(atom_to_list(Node), atom_to_binary(StateToBe, latin1), 0).
+
+compact_wait_until(Node, StateToBe, ?THRESHOLD_ERROR_TIMES) ->
+    io:format("Timeout to wait for compacting node:~p transiting to ~p~n", [Node, StateToBe]),
+    halt();
+compact_wait_until(Node, StateToBe, Retry) ->
+    {ok, [{<<"compaction_status">>, CompactStatus}]} = libleofs:compact_status(?S3_HOST, ?LEOFS_ADM_JSON_PORT, Node),
+    case proplists:get_value(<<"status">>, CompactStatus) of
+        StateToBe ->
+            ok;
+        false ->
+            timer:sleep(timer:seconds(5)),
+            compact_wait_until(Node, StateToBe, Retry + 1)
     end.
