@@ -39,7 +39,7 @@
 -define(MQ_QUEUE_SUSPENDED, "leo_per_object_queue").
 -define(MQ_STATE_SUSPENDING_FORCE, "suspending(force)").
 -define(MQ_STATE_IDLING, "idling").
-
+-define(MQ_STATE_RUNNING, "running").
 
 %% @doc Execute tests
 run(?F_CREATE_BUCKET, S3Conf) ->
@@ -141,11 +141,11 @@ run(?F_SCRUB_CLUSTER,_S3Conf) ->
 %% MQ(Message Queue - leo_mq) related
 run(?F_MQ_SUSPEND_QUEUE,_S3Conf) ->
     ok = mq_suspend_queue(atom_to_list(?SUSPEND_NODE), ?MQ_QUEUE_SUSPENDED),
-    ok = mq_wait_until(atom_to_list(?SUSPEND_NODE), ?MQ_QUEUE_SUSPENDED, ?MQ_STATE_SUSPENDING_FORCE),
+    ok = mq_wait_until(atom_to_list(?SUSPEND_NODE), ?MQ_QUEUE_SUSPENDED, [?MQ_STATE_SUSPENDING_FORCE]),
     ok;
 run(?F_MQ_RESUME_QUEUE,_S3Conf) ->
     ok = mq_resume_queue(atom_to_list(?RESUME_NODE), ?MQ_QUEUE_SUSPENDED),
-    ok = mq_wait_until(atom_to_list(?RESUME_NODE), ?MQ_QUEUE_SUSPENDED, ?MQ_STATE_IDLING),
+    ok = mq_wait_until(atom_to_list(?RESUME_NODE), ?MQ_QUEUE_SUSPENDED, [?MQ_STATE_IDLING, ?MQ_STATE_RUNNING]),
     ok;
 %% MP(multipart upload) related
 run(?F_MP_UPLOAD_NORMAL, S3Conf) ->
@@ -1083,7 +1083,8 @@ mq_resume_queue(Node, Queue) ->
     {ok, _} = libleofs:mq_resume(?S3_HOST, ?LEOFS_ADM_JSON_PORT, Node, Queue),
     ok.
 mq_wait_until(Node, Queue, StateToBe) ->
-    mq_wait_until(Node, list_to_binary(Queue), list_to_binary(StateToBe), 0).
+    StateToBe2 = [list_to_binary(S) || S <- StateToBe],
+    mq_wait_until(Node, list_to_binary(Queue), StateToBe2, 0).
 
 mq_wait_until(Node, Queue, StateToBe, ?THRESHOLD_ERROR_TIMES) ->
     io:format("Timeout to wait for node:~p queue:~p transiting to ~p~n", [Node, Queue, StateToBe]),
@@ -1100,10 +1101,10 @@ mq_wait_until(Node, Queue, StateToBe, Retry) ->
                end
            end,
     [H|_] = lists:filter(Pred, QueueList),
-    case proplists:get_value(<<"state">>, H) of
-        StateToBe ->
+    case lists:member(proplists:get_value(<<"state">>, H), StateToBe) of
+        true ->
             ok;
-        _Other ->
+        false ->
             timer:sleep(timer:seconds(5)),
             mq_wait_until(Node, Queue, StateToBe, Retry + 1)
     end.
