@@ -126,6 +126,9 @@ run(?F_DIAGNOSIS,_S3Conf) ->
 run(?F_COMPACTION,_S3Conf) ->
     ok = compaction(),
     ok;
+run(?F_DU,_S3Conf) ->
+    ok = du(),
+    ok;
 run(?F_REMOVE_AVS,_S3Conf) ->
     ok = remove_avs(?RECOVER_NODE),
     ok;
@@ -940,6 +943,26 @@ compaction_2(Node) ->
             halt()
     end.
 
+%% @doc Execute du
+%% @private
+du() ->
+    Nodes = get_storage_nodes(),
+    du_1(Nodes).
+
+%% @private
+du_1([]) ->
+    ?msg_progress_finished(),
+    ok;
+du_1([Node|Rest]) ->
+    ?msg_progress_ongoing(),
+    {ok, DU} = libleofs:du(?S3_HOST, ?LEOFS_ADM_JSON_PORT, atom_to_list(Node)),
+    case proplists:get_value(<<"active_num_of_objects">>, DU) of
+        Val when is_integer(Val) ->
+            du_1(Rest);
+        Other ->
+            io:format("[ERROR] du failure. node:~p value:~p~n", [Node, Other]),
+            halt()
+    end.
 
 %% @doc Remove avs of the node
 remove_avs(Node) ->

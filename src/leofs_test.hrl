@@ -107,6 +107,7 @@
 -define(F_STOP_NODE,         stop_node).
 -define(F_WATCH_MQ,          watch_mq).
 -define(F_COMPACTION,        compaction).
+-define(F_DU,                du).
 -define(F_DIAGNOSIS,         diagnosis).
 -define(F_REMOVE_AVS,        remove_avs).
 -define(F_RECOVER_FILE,      recover_file).
@@ -137,6 +138,7 @@
 -define(SC_ITEM_STOP_NODE,         {?F_STOP_NODE,      "stop a node"}).
 -define(SC_ITEM_WATCH_MQ,          {?F_WATCH_MQ,       "watch state of mq"}).
 -define(SC_ITEM_COMPACTION,        {?F_COMPACTION,     "execute data-compaction"}).
+-define(SC_ITEM_DU,                {?F_DU,             "summarize the disk usage of a node"}).
 -define(SC_ITEM_DIAGNOSIS,         {?F_DIAGNOSIS,      "execute data-diagnosis"}).
 -define(SC_ITEM_REMOVE_AVS,        {?F_REMOVE_AVS,     "remove avs of a node"}).
 -define(SC_ITEM_RECOVER_FILE,      {?F_RECOVER_FILE,   "recover data of a file"}).
@@ -163,6 +165,7 @@
                    ?SC_ITEM_STOP_NODE,
                    ?SC_ITEM_WATCH_MQ,
                    ?SC_ITEM_COMPACTION,
+                   ?SC_ITEM_DU,
                    ?SC_ITEM_REMOVE_AVS,
                    ?SC_ITEM_RECOVER_FILE,
                    ?SC_ITEM_RECOVER_NODE,
@@ -218,6 +221,7 @@
 
 %% suspend > resume > resume node
 -define(SCENARIO_4, {"SCENARIO-4", [?SC_ITEM_PUT_OBJ,
+                                    ?SC_ITEM_DU,
                                     ?SC_ITEM_SUSPEND_NODE,
                                     ?SC_ITEM_STOP_NODE,
                                     ?SC_ITEM_GET_OBJ,
