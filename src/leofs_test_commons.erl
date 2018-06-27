@@ -1034,14 +1034,14 @@ recover_file() ->
                  end,
     %% PUT
     [put_inconsistent_object_with_fine_grained_ctrl(Suffix, ReplicaState) || {Suffix, ReplicaState} <- TestSuites],
-    ok = recover_consistency(),
-    timer:sleep(timer:seconds(5)), %% for safe
+    [{ok, _} = libleofs:recover_file(?S3_HOST, ?LEOFS_ADM_JSON_PORT, gen_key_for_recover_file(Suffix)) || {Suffix, _} <- TestSuites],
+    timer:sleep(timer:seconds(25)), %% for safe
     watch_mq(),
     [check_redundancies_2(gen_key_for_recover_file(Suffix)) || {Suffix, _} <- TestSuites],
     %% DELETE
     [delete_inconsistent_object_with_fine_grained_ctrl(Suffix, ReplicaState) || {Suffix, ReplicaState} <- TestSuites],
-    ok = recover_consistency(),
-    timer:sleep(timer:seconds(5)), %% for safe
+    [{ok, _} = libleofs:recover_file(?S3_HOST, ?LEOFS_ADM_JSON_PORT, gen_key_for_recover_file(Suffix)) || {Suffix, _} <- TestSuites],
+    timer:sleep(timer:seconds(25)), %% for safe
     watch_mq(),
     [check_redundancies_2(gen_key_for_recover_file(Suffix)) || {Suffix, _} <- TestSuites],
     ok.
