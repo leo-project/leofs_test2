@@ -35,6 +35,11 @@
 -define(RECOVER_NODE,  'storage_2@127.0.0.1').
 -define(TAKEOVER_NODE, 'storage_4@127.0.0.1').
 
+%% MQ related
+-define(MQ_QUEUE_SUSPENDED, "leo_per_object_queue").
+-define(MQ_STATE_SUSPENDING_FORCE, "suspending(force)").
+-define(MQ_STATE_IDLING, "idling").
+-define(MQ_STATE_RUNNING, "running").
 
 %% @doc Execute tests
 run(?F_CREATE_BUCKET, S3Conf) ->
@@ -121,6 +126,9 @@ run(?F_DIAGNOSIS,_S3Conf) ->
 run(?F_COMPACTION,_S3Conf) ->
     ok = compaction(),
     ok;
+run(?F_DU,_S3Conf) ->
+    ok = du(),
+    ok;
 run(?F_REMOVE_AVS,_S3Conf) ->
     ok = remove_avs(?RECOVER_NODE),
     ok;
@@ -132,6 +140,15 @@ run(?F_RECOVER_NODE,_S3Conf) ->
     ok;
 run(?F_SCRUB_CLUSTER,_S3Conf) ->
     ok = recover_consistency(),
+    ok;
+%% MQ(Message Queue - leo_mq) related
+run(?F_MQ_SUSPEND_QUEUE,_S3Conf) ->
+    ok = mq_suspend_queue(atom_to_list(?SUSPEND_NODE), ?MQ_QUEUE_SUSPENDED),
+    ok = mq_wait_until(atom_to_list(?SUSPEND_NODE), ?MQ_QUEUE_SUSPENDED, [?MQ_STATE_SUSPENDING_FORCE]),
+    ok;
+run(?F_MQ_RESUME_QUEUE,_S3Conf) ->
+    ok = mq_resume_queue(atom_to_list(?RESUME_NODE), ?MQ_QUEUE_SUSPENDED),
+    ok = mq_wait_until(atom_to_list(?RESUME_NODE), ?MQ_QUEUE_SUSPENDED, [?MQ_STATE_IDLING, ?MQ_STATE_RUNNING]),
     ok;
 %% MP(multipart upload) related
 run(?F_MP_UPLOAD_NORMAL, S3Conf) ->
@@ -894,10 +911,21 @@ compaction_1([]) ->
 compaction_1([Node|Rest]) ->
     case rpc:call(?env_manager(), leo_manager_api, compact, ["start", Node, 'all', 1]) of
         ok ->
+            case Rest of
+                [] ->
+                    %% do suspend/resume test
+                    {ok, _} = libleofs:compact_suspend(?S3_HOST, ?LEOFS_ADM_JSON_PORT, atom_to_list(Node)),
+                    ok = compact_wait_until(Node, ?ST_SUSPENDING),
+                    timer:sleep(timer:seconds(5)),
+                    {ok, _} = libleofs:compact_resume(?S3_HOST, ?LEOFS_ADM_JSON_PORT, atom_to_list(Node)),
+                    ok = compact_wait_until(Node, ?ST_RUNNING);
+                _Other ->
+                    nop
+            end,
             ok = compaction_2(Node),
             compaction_1(Rest);
-        _Other ->
-            ?msg_error("Could not execute data-compaction"),
+        Error ->
+            ?msg_error(["Could not execute data-compaction. error:", Error]),
             halt()
     end.
 
@@ -915,6 +943,26 @@ compaction_2(Node) ->
             halt()
     end.
 
+%% @doc Execute du
+%% @private
+du() ->
+    Nodes = get_storage_nodes(),
+    du_1(Nodes).
+
+%% @private
+du_1([]) ->
+    ?msg_progress_finished(),
+    ok;
+du_1([Node|Rest]) ->
+    ?msg_progress_ongoing(),
+    {ok, DU} = libleofs:du(?S3_HOST, ?LEOFS_ADM_JSON_PORT, atom_to_list(Node)),
+    case proplists:get_value(<<"active_num_of_objects">>, DU) of
+        Val when is_integer(Val) ->
+            du_1(Rest);
+        Other ->
+            io:format("[ERROR] du failure. node:~p value:~p~n", [Node, Other]),
+            halt()
+    end.
 
 %% @doc Remove avs of the node
 remove_avs(Node) ->
@@ -1020,14 +1068,14 @@ recover_file() ->
                  end,
     %% PUT
     [put_inconsistent_object_with_fine_grained_ctrl(Suffix, ReplicaState) || {Suffix, ReplicaState} <- TestSuites],
-    ok = recover_consistency(),
-    timer:sleep(timer:seconds(5)), %% for safe
+    [{ok, _} = libleofs:recover_file(?S3_HOST, ?LEOFS_ADM_JSON_PORT, gen_key_for_recover_file(Suffix)) || {Suffix, _} <- TestSuites],
+    timer:sleep(timer:seconds(25)), %% for safe
     watch_mq(),
     [check_redundancies_2(gen_key_for_recover_file(Suffix)) || {Suffix, _} <- TestSuites],
     %% DELETE
     [delete_inconsistent_object_with_fine_grained_ctrl(Suffix, ReplicaState) || {Suffix, ReplicaState} <- TestSuites],
-    ok = recover_consistency(),
-    timer:sleep(timer:seconds(5)), %% for safe
+    [{ok, _} = libleofs:recover_file(?S3_HOST, ?LEOFS_ADM_JSON_PORT, gen_key_for_recover_file(Suffix)) || {Suffix, _} <- TestSuites],
+    timer:sleep(timer:seconds(25)), %% for safe
     watch_mq(),
     [check_redundancies_2(gen_key_for_recover_file(Suffix)) || {Suffix, _} <- TestSuites],
     ok.
@@ -1057,4 +1105,56 @@ delete_inconsistent_object_with_fine_grained_ctrl(Suffix, ReplicaState) ->
         Error ->
             io:format("[ERROR] recover-file RPC failure. node:~p key:~p err:~p~n", [Node, Key, Error]),
             halt()
+    end.
+
+
+%% @doc MQ related
+%% @private
+mq_suspend_queue(Node, Queue) ->
+    {ok, _} = libleofs:mq_suspend(?S3_HOST, ?LEOFS_ADM_JSON_PORT, Node, Queue),
+    ok.
+mq_resume_queue(Node, Queue) ->
+    {ok, _} = libleofs:mq_resume(?S3_HOST, ?LEOFS_ADM_JSON_PORT, Node, Queue),
+    ok.
+mq_wait_until(Node, Queue, StateToBe) ->
+    StateToBe2 = [list_to_binary(S) || S <- StateToBe],
+    mq_wait_until(Node, list_to_binary(Queue), StateToBe2, 0).
+
+mq_wait_until(Node, Queue, StateToBe, ?THRESHOLD_ERROR_TIMES) ->
+    io:format("Timeout to wait for node:~p queue:~p transiting to ~p~n", [Node, Queue, StateToBe]),
+    halt();
+mq_wait_until(Node, Queue, StateToBe, Retry) ->
+    {ok, [{<<"mq_stats">>, QueueList}]} = libleofs:mq_stats(?S3_HOST, ?LEOFS_ADM_JSON_PORT, Node),
+    Pred = fun(T) ->
+               Id = proplists:get_value(<<"id">>, T),
+               case Id of
+                   Queue ->
+                       true;
+                   _ ->
+                       false
+               end
+           end,
+    [H|_] = lists:filter(Pred, QueueList),
+    case lists:member(proplists:get_value(<<"state">>, H), StateToBe) of
+        true ->
+            ok;
+        false ->
+            timer:sleep(timer:seconds(5)),
+            mq_wait_until(Node, Queue, StateToBe, Retry + 1)
+    end.
+
+compact_wait_until(Node, StateToBe) ->
+    compact_wait_until(atom_to_list(Node), atom_to_binary(StateToBe, latin1), 0).
+
+compact_wait_until(Node, StateToBe, ?THRESHOLD_ERROR_TIMES) ->
+    io:format("Timeout to wait for compacting node:~p transiting to ~p~n", [Node, StateToBe]),
+    halt();
+compact_wait_until(Node, StateToBe, Retry) ->
+    {ok, [{<<"compaction_status">>, CompactStatus}]} = libleofs:compact_status(?S3_HOST, ?LEOFS_ADM_JSON_PORT, Node),
+    case proplists:get_value(<<"status">>, CompactStatus) of
+        StateToBe ->
+            ok;
+        false ->
+            timer:sleep(timer:seconds(5)),
+            compact_wait_until(Node, StateToBe, Retry + 1)
     end.

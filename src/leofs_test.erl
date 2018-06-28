@@ -22,7 +22,7 @@
 -module(leofs_test).
 
 -include("leofs_test.hrl").
--include_lib("deps/erlcloud/include/erlcloud_aws.hrl").
+-include_lib("erlcloud/include/erlcloud_aws.hrl").
 
 -export([main/1]).
 
@@ -69,16 +69,6 @@ main(Args) ->
     NeedLaunch = leo_misc:get_value(?PROP_LAUNCH, Opts, false),
     ok = application:set_env(?APP, ?PROP_LAUNCH, NeedLaunch),
 
-    %% Load/Start apps
-    ok = code:add_paths(["ebin",
-                         "deps/erlcloud/ebin",
-                         "deps/base16/ebin",
-                         "deps/lhttpc/ebin",
-                         "deps/eini/ebin",
-                         "deps/jsx/ebin",
-                         "deps/getopt/ebin",
-                         "deps/leo_commons/ebin"
-                        ]),
     ok = application:start(crypto),
     ok = application:start(asn1),
     ok = application:start(public_key),
