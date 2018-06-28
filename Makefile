@@ -1,9 +1,9 @@
 .PHONY: deps compile exec clean xref eunit
 
-REBAR := ./rebar
+REBAR = $(shell pwd)/rebar3
 
 all: deps compile
-	@$(REBAR) skip_deps=true escriptize
+	@$(REBAR) escriptize
 
 deps:
 	@$(REBAR) get-deps
