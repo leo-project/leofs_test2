@@ -32,6 +32,7 @@
 -define(DETACH_NODE_1, 'storage_0@127.0.0.1').
 -define(SUSPEND_NODE,  'storage_1@127.0.0.1').
 -define(RESUME_NODE,   'storage_1@127.0.0.1').
+-define(DUMP_RING_NODE,'storage_1@127.0.0.1').
 -define(RECOVER_NODE,  'storage_2@127.0.0.1').
 -define(TAKEOVER_NODE, 'storage_4@127.0.0.1').
 
@@ -48,6 +49,12 @@ run(?F_CREATE_BUCKET, S3Conf) ->
 run(?F_DELETE_BUCKET, S3Conf) ->
     catch erlcloud_s3:delete_bucket(?env_bucket(), S3Conf),
     timer:sleep(timer:seconds(10)),
+    ok;
+run(?F_DUMP_RING, _S3Conf) ->
+    {ok, _} = libleofs:dump_ring(?S3_HOST, ?LEOFS_ADM_JSON_PORT, atom_to_list(?DUMP_RING_NODE)),
+    Dir = lists:append([?env_leofs_dir(), "/leo_storage_1/log/ring"]),
+    {ok, DumpFiles} = file:list_dir(Dir),
+    [{ok, _} = file:consult(lists:append([Dir, "/", F])) || F <- DumpFiles],
     ok;
 run(?F_PURGE_CACHE, S3Conf) ->
     %% PUT
