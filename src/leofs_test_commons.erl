@@ -33,6 +33,7 @@
 -define(SUSPEND_NODE,  'storage_1@127.0.0.1').
 -define(RESUME_NODE,   'storage_1@127.0.0.1').
 -define(DUMP_RING_NODE,'storage_1@127.0.0.1').
+-define(UPDATE_LOG_LEVEL_NODE,'storage_1@127.0.0.1').
 -define(RECOVER_NODE,  'storage_2@127.0.0.1').
 -define(TAKEOVER_NODE, 'storage_4@127.0.0.1').
 
@@ -50,6 +51,16 @@ run(?F_DELETE_BUCKET, S3Conf) ->
     catch erlcloud_s3:delete_bucket(?env_bucket(), S3Conf),
     timer:sleep(timer:seconds(10)),
     ok;
+run(?F_UPDATE_LOG_LEVEL, _S3Conf) ->
+    {ok, _} = libleofs:update_log_level(?S3_HOST, ?LEOFS_ADM_JSON_PORT, atom_to_list(?UPDATE_LOG_LEVEL_NODE), "warn"),
+    {ok, [{<<"node_stat">>, NodeStat}]} = libleofs:status(?S3_HOST, ?LEOFS_ADM_JSON_PORT, atom_to_list(?UPDATE_LOG_LEVEL_NODE)),
+    case proplists:get_value(<<"log_level">>, NodeStat) of
+        <<"warn">> ->
+            ok;
+        Other ->
+            io:format("[ERROR] update_log_level failed. the value not changed. val:~p~n", [Other]),
+            halt()
+    end;
 run(?F_DUMP_RING, _S3Conf) ->
     {ok, _} = libleofs:dump_ring(?S3_HOST, ?LEOFS_ADM_JSON_PORT, atom_to_list(?DUMP_RING_NODE)),
     Dir = lists:append([?env_leofs_dir(), "/leo_storage_1/log/ring"]),
