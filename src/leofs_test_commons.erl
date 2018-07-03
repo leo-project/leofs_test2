@@ -49,6 +49,43 @@ run(?F_DELETE_BUCKET, S3Conf) ->
     catch erlcloud_s3:delete_bucket(?env_bucket(), S3Conf),
     timer:sleep(timer:seconds(10)),
     ok;
+run(?F_PURGE_CACHE, S3Conf) ->
+    %% PUT
+    Bucket = ?env_bucket(),
+    Key = gen_key_for_purge_cache("temp"),
+    Val = crypto:strong_rand_bytes(16),
+    [_H|_Rest] = erlcloud_s3:put_object(Bucket, Key, Val, [], S3Conf),
+    %% GET. x-amz-meta-leofs-from-cache should be included (Cache Hit)
+    case erlcloud_s3:get_object(Bucket, Key, S3Conf) of
+        Ret when is_list(Ret) ->
+            case proplists:get_value("x-amz-meta-leofs-from-cache", Ret) of
+                undefined ->
+                    io:format("[ERROR] purge-cache failed due to undefined x-amz-meta-leofs-from-cache in proplists:~p~n", [Ret]),
+                    halt();
+                _ ->
+                    ok
+            end;
+        Error ->
+            io:format("[ERROR] purge-cache failed due to get_object failure:~p~n", [Error]),
+            halt()
+    end,
+    %% purge-cache
+    Key4LeoFS = lists:append([Bucket, "/", Key]),
+    {ok, _} = libleofs:purge(?S3_HOST, ?LEOFS_ADM_JSON_PORT, Key4LeoFS),
+    %% GET. x-amz-meta-leofs-from-cache should NOT be included (Cache MISS)
+    case erlcloud_s3:get_object(Bucket, Key, S3Conf) of
+        Ret2 when is_list(Ret2) ->
+            case proplists:get_value("x-amz-meta-leofs-from-cache", Ret2) of
+                undefined ->
+                    ok;
+                _ ->
+                    io:format("[ERROR] purge-cache failed due to x-amz-meta-leofs-from-cache existing in proplists:~p~n", [Ret2]),
+                    halt()
+            end;
+        Error2 ->
+            io:format("[ERROR] purge-cache failed due to get_object failure:~p~n", [Error2]),
+            halt()
+    end;
 run(?F_PUT_OBJ, S3Conf) ->
     Keys = ?env_keys(),
     ok = put_object(S3Conf, Keys),
@@ -321,10 +358,16 @@ gen_key(Index) ->
 gen_key_for_multipart(Suffix) when is_list(Suffix) ->
     lists:append(["test/mp/", Suffix]).
 
+%% @doc Generate a key for purge-cache
+%% @private
+gen_key_for_purge_cache(Suffix) when is_list(Suffix) ->
+    lists:append(["test/pc/", Suffix]).
+
 %% @doc Generate a key for recover-file
 %% @private
 gen_key_for_recover_file(Suffix) when is_list(Suffix) ->
     lists:append([?env_bucket(), "/test/rf/", Suffix]).
+
 
 %% @doc Output progress
 %% @private

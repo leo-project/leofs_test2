@@ -89,6 +89,7 @@
 
 
 %% TEST Scenatios:
+-define(F_PURGE_CACHE,          purge_cache).
 -define(F_PUT_OBJ,              put_objects).
 -define(F_PUT_ZERO_BYTE_OBJ,    put_zero_byte_objects).
 -define(F_PUT_INCONSISTENT_OBJ, put_inconsistent_objects).
@@ -120,6 +121,7 @@
 -define(F_MP_UPLOAD_ABORT,              mp_upload_abort).
 -define(F_MP_UPLOAD_INVALID_COMPLETE,   mp_upload_invalid_complete).
 
+-define(SC_ITEM_PURGE_CACHE,          {?F_PURGE_CACHE,          "remove a cache from each gateway"}).
 -define(SC_ITEM_PUT_OBJ,              {?F_PUT_OBJ,              "put objects"}).
 -define(SC_ITEM_PUT_ZERO_BYTE_OBJ,    {?F_PUT_ZERO_BYTE_OBJ,    "put zero byte objects"}).
 -define(SC_ITEM_PUT_INCONSISTENT_OBJ, {?F_PUT_INCONSISTENT_OBJ, "put inconsistent objects"}).
@@ -150,7 +152,8 @@
 -define(SC_ITEM_MP_UPLOAD_NORMAL_IN_PARALLEL, {?F_MP_UPLOAD_NORMAL_IN_PARALLEL, "multipart upload in parallel"}).
 -define(SC_ITEM_MP_UPLOAD_ABORT, {?F_MP_UPLOAD_ABORT, "abort multipart upload"}).
 -define(SC_ITEM_MP_UPLOAD_INVALID_COMPLETE, {?F_MP_UPLOAD_INVALID_COMPLETE, "invalid complete multipart upload"}).
--define(SC_ITEMS, [?SC_ITEM_PUT_OBJ,
+-define(SC_ITEMS, [?SC_ITEM_PURGE_CACHE,
+                   ?SC_ITEM_PUT_OBJ,
                    ?SC_ITEM_GET_OBJ,
                    ?SC_ITEM_GET_OBJ_NOT_FOUND,
                    ?SC_ITEM_DEL_OBJ,
@@ -186,6 +189,7 @@
                                      ]}).
 
 -define(SCENARIO_1, {"SCENARIO-1", [?SC_ITEM_CREATE_BUCKET,
+                                    ?SC_ITEM_PURGE_CACHE,
                                     ?SC_ITEM_RECOVER_FILE,
                                     ?SC_ITEM_GET_OBJ_NOT_FOUND,
                                     ?SC_ITEM_PUT_ZERO_BYTE_OBJ,
