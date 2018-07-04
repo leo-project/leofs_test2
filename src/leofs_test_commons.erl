@@ -37,6 +37,8 @@
 -define(RECOVER_NODE,  'storage_2@127.0.0.1').
 -define(TAKEOVER_NODE, 'storage_4@127.0.0.1').
 
+-define(MNESIA_BACKUP_PATH, "mnesia.bak").
+
 %% MQ related
 -define(MQ_QUEUE_SUSPENDED, "leo_per_object_queue").
 -define(MQ_STATE_SUSPENDING_FORCE, "suspending(force)").
@@ -50,6 +52,38 @@ run(?F_CREATE_BUCKET, S3Conf) ->
 run(?F_DELETE_BUCKET, S3Conf) ->
     catch erlcloud_s3:delete_bucket(?env_bucket(), S3Conf),
     timer:sleep(timer:seconds(10)),
+    ok;
+%% mnesia backup/restore
+run(?F_MNESIA, _S3Conf) ->
+    {ok, _} = libleofs:backup_mnesia(?S3_HOST, ?LEOFS_ADM_JSON_PORT, ?MNESIA_BACKUP_PATH),
+
+    %% update mnesia records
+    UserID = "user",
+    Endpoint = "endpoint",
+    Bucket = "bucket",
+    AccessKey = "05236",
+    {ok, _} = libleofs:create_user(?S3_HOST, ?LEOFS_ADM_JSON_PORT, UserID, "foo"),
+    {ok, _} = libleofs:add_endpoint(?S3_HOST, ?LEOFS_ADM_JSON_PORT, Endpoint),
+    {ok, _} = libleofs:add_bucket(?S3_HOST, ?LEOFS_ADM_JSON_PORT, Bucket, AccessKey),
+
+    {ok, _} = libleofs:restore_mnesia(?S3_HOST, ?LEOFS_ADM_JSON_PORT, ?MNESIA_BACKUP_PATH),
+
+    %% check if records updated before restoring mnesia are gone
+    {ok, UserList} = libleofs:get_users(?S3_HOST, ?LEOFS_ADM_JSON_PORT),
+    BinUID = list_to_binary(UserID),
+    [] = lists:filter(fun(U) ->
+                          proplists:get_value(<<"user_id">>, U) =:= BinUID
+                      end, UserList),
+    {ok, EndpointList} = libleofs:get_endpoints(?S3_HOST, ?LEOFS_ADM_JSON_PORT),
+    BinEndpoint = list_to_binary(Endpoint),
+    [] = lists:filter(fun(E) ->
+                          proplists:get_value(<<"endpoint">>, E) =:= BinEndpoint
+                      end, EndpointList),
+    {ok, BucketList} = libleofs:get_buckets(?S3_HOST, ?LEOFS_ADM_JSON_PORT),
+    BinBucket = list_to_binary(Bucket),
+    [] = lists:filter(fun(B) ->
+                          proplists:get_value(<<"bucket">>, B) =:= BinBucket
+                      end, BucketList),
     ok;
 %% user/endpoint/bucket CRUD
 run(?F_USER_CRUD, _S3Conf) ->

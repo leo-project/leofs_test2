@@ -89,6 +89,7 @@
 
 
 %% TEST Scenatios:
+-define(F_MNESIA,        mnesia).
 -define(F_USER_CRUD,     user_crud).
 -define(F_ENDPOINT_CRUD, endpoint_crud).
 -define(F_BUCKET_CRUD,   bucket_crud).
@@ -127,6 +128,7 @@
 -define(F_MP_UPLOAD_ABORT,              mp_upload_abort).
 -define(F_MP_UPLOAD_INVALID_COMPLETE,   mp_upload_invalid_complete).
 
+-define(SC_ITEM_MNESIA,        {?F_MNESIA,        "test mnesia backup/restore"}).
 -define(SC_ITEM_USER_CRUD,     {?F_USER_CRUD,     "test user related CRUD"}).
 -define(SC_ITEM_ENDPOINT_CRUD, {?F_ENDPOINT_CRUD, "test endpoint related CRUD"}).
 -define(SC_ITEM_BUCKET_CRUD,   {?F_BUCKET_CRUD,   "test bucket related CRUD"}).
@@ -164,7 +166,8 @@
 -define(SC_ITEM_MP_UPLOAD_NORMAL_IN_PARALLEL, {?F_MP_UPLOAD_NORMAL_IN_PARALLEL, "multipart upload in parallel"}).
 -define(SC_ITEM_MP_UPLOAD_ABORT, {?F_MP_UPLOAD_ABORT, "abort multipart upload"}).
 -define(SC_ITEM_MP_UPLOAD_INVALID_COMPLETE, {?F_MP_UPLOAD_INVALID_COMPLETE, "invalid complete multipart upload"}).
--define(SC_ITEMS, [?SC_ITEM_USER_CRUD,
+-define(SC_ITEMS, [?SC_ITEM_MNESIA,
+                   ?SC_ITEM_USER_CRUD,
                    ?SC_ITEM_ENDPOINT_CRUD,
                    ?SC_ITEM_BUCKET_CRUD,
                    ?SC_ITEM_UPDATE_CONSISTENCY_LEVEL,
@@ -206,7 +209,8 @@
                                       ?SC_ITEM_CHECK_REPLICAS
                                      ]}).
 
--define(SCENARIO_1, {"SCENARIO-1", [?SC_ITEM_USER_CRUD,
+-define(SCENARIO_1, {"SCENARIO-1", [?SC_ITEM_MNESIA,
+                                    ?SC_ITEM_USER_CRUD,
                                     ?SC_ITEM_ENDPOINT_CRUD,
                                     ?SC_ITEM_BUCKET_CRUD,
                                     ?SC_ITEM_WATCH_MQ,
