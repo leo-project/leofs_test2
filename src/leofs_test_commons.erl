@@ -51,6 +51,71 @@ run(?F_DELETE_BUCKET, S3Conf) ->
     catch erlcloud_s3:delete_bucket(?env_bucket(), S3Conf),
     timer:sleep(timer:seconds(10)),
     ok;
+%% user/endpoint/bucket CRUD
+run(?F_USER_CRUD, _S3Conf) ->
+    UserID = "user",
+    {ok, _} = libleofs:create_user(?S3_HOST, ?LEOFS_ADM_JSON_PORT, UserID, "foo"),
+    {ok, _} = libleofs:update_user_password(?S3_HOST, ?LEOFS_ADM_JSON_PORT, UserID, "bar"),
+    {ok, _} = libleofs:update_user_role(?S3_HOST, ?LEOFS_ADM_JSON_PORT, UserID, "9"),
+    {ok, UserList} = libleofs:get_users(?S3_HOST, ?LEOFS_ADM_JSON_PORT),
+    BinUID = list_to_binary(UserID),
+    Pred = fun(U) ->
+               case proplists:get_value(<<"user_id">>, U) of
+                   BinUID ->
+                       proplists:get_value(<<"role_id">>, U) =:= 9;
+                   _ ->
+                       false
+               end
+           end,
+    [_H|_] = lists:filter(Pred, UserList),
+    {ok, _} = libleofs:delete_user(?S3_HOST, ?LEOFS_ADM_JSON_PORT, UserID),
+    {ok, UserList2} = libleofs:get_users(?S3_HOST, ?LEOFS_ADM_JSON_PORT),
+    [] = lists:filter(Pred, UserList2),
+    ok;
+run(?F_ENDPOINT_CRUD, _S3Conf) ->
+    Endpoint = "endpoint",
+    {ok, _} = libleofs:add_endpoint(?S3_HOST, ?LEOFS_ADM_JSON_PORT, Endpoint),
+    {ok, EndpointList} = libleofs:get_endpoints(?S3_HOST, ?LEOFS_ADM_JSON_PORT),
+    BinEndpoint = list_to_binary(Endpoint),
+    Pred = fun(E) ->
+               case proplists:get_value(<<"endpoint">>, E) of
+                   BinEndpoint ->
+                       true;
+                   _ ->
+                       false
+               end
+           end,
+    [_H|_] = lists:filter(Pred, EndpointList),
+    {ok, _} = libleofs:delete_endpoint(?S3_HOST, ?LEOFS_ADM_JSON_PORT, Endpoint),
+    {ok, EndpointList2} = libleofs:get_endpoints(?S3_HOST, ?LEOFS_ADM_JSON_PORT),
+    [] = lists:filter(Pred, EndpointList2),
+    ok;
+run(?F_BUCKET_CRUD, _S3Conf) ->
+    Bucket = "bucket",
+    AccessKey = "05236",
+    {ok, _} = libleofs:add_bucket(?S3_HOST, ?LEOFS_ADM_JSON_PORT, Bucket, AccessKey),
+    %% {error, <<"Already yours">>
+    {error, _} = libleofs:add_bucket(?S3_HOST, ?LEOFS_ADM_JSON_PORT, Bucket, AccessKey),
+    {ok, BucketList} = libleofs:get_buckets(?S3_HOST, ?LEOFS_ADM_JSON_PORT),
+    BinBucket = list_to_binary(Bucket),
+    Pred = fun(B) ->
+               case proplists:get_value(<<"bucket">>, B) of
+                   BinBucket ->
+                       true;
+                   _ ->
+                       false
+               end
+           end,
+    [_|_] = lists:filter(Pred, BucketList),
+    {ok, BucketList2} = libleofs:get_buckets(?S3_HOST, ?LEOFS_ADM_JSON_PORT, AccessKey),
+    [_|_] = lists:filter(Pred, BucketList2),
+    {ok, _} = libleofs:delete_bucket(?S3_HOST, ?LEOFS_ADM_JSON_PORT, Bucket, AccessKey),
+    {ok, BucketList3} = libleofs:get_buckets(?S3_HOST, ?LEOFS_ADM_JSON_PORT),
+    [] = lists:filter(Pred, BucketList3),
+    {ok, BucketList4} = libleofs:get_buckets(?S3_HOST, ?LEOFS_ADM_JSON_PORT, AccessKey),
+    [] = lists:filter(Pred, BucketList4),
+    timer:sleep(timer:seconds(10)), %% Wait until background delete-bucket process finishes
+    ok;
 run(?F_UPDATE_LOG_LEVEL, _S3Conf) ->
     {ok, _} = libleofs:update_log_level(?S3_HOST, ?LEOFS_ADM_JSON_PORT, atom_to_list(?UPDATE_LOG_LEVEL_NODE), "warn"),
     {ok, [{<<"node_stat">>, NodeStat}]} = libleofs:status(?S3_HOST, ?LEOFS_ADM_JSON_PORT, atom_to_list(?UPDATE_LOG_LEVEL_NODE)),
