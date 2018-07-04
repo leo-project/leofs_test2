@@ -89,6 +89,7 @@
 
 
 %% TEST Scenatios:
+-define(F_UPDATE_CONSISTENCY_LEVEL, update_consistency_level).
 -define(F_UPDATE_LOG_LEVEL,     update_log_level).
 -define(F_DUMP_RING,            dump_ring).
 -define(F_PURGE_CACHE,          purge_cache).
@@ -123,6 +124,7 @@
 -define(F_MP_UPLOAD_ABORT,              mp_upload_abort).
 -define(F_MP_UPLOAD_INVALID_COMPLETE,   mp_upload_invalid_complete).
 
+-define(SC_ITEM_UPDATE_CONSISTENCY_LEVEL, {?F_UPDATE_CONSISTENCY_LEVEL, "update consistency level of a node"}).
 -define(SC_ITEM_UPDATE_LOG_LEVEL,     {?F_UPDATE_LOG_LEVEL,     "update log level of a node"}).
 -define(SC_ITEM_DUMP_RING,            {?F_DUMP_RING,            "dump ring data to the local disk"}).
 -define(SC_ITEM_PURGE_CACHE,          {?F_PURGE_CACHE,          "remove a cache from each gateway"}).
@@ -156,7 +158,8 @@
 -define(SC_ITEM_MP_UPLOAD_NORMAL_IN_PARALLEL, {?F_MP_UPLOAD_NORMAL_IN_PARALLEL, "multipart upload in parallel"}).
 -define(SC_ITEM_MP_UPLOAD_ABORT, {?F_MP_UPLOAD_ABORT, "abort multipart upload"}).
 -define(SC_ITEM_MP_UPLOAD_INVALID_COMPLETE, {?F_MP_UPLOAD_INVALID_COMPLETE, "invalid complete multipart upload"}).
--define(SC_ITEMS, [?SC_ITEM_UPDATE_LOG_LEVEL,
+-define(SC_ITEMS, [?SC_ITEM_UPDATE_CONSISTENCY_LEVEL,
+                   ?SC_ITEM_UPDATE_LOG_LEVEL,
                    ?SC_ITEM_DUMP_RING,
                    ?SC_ITEM_PURGE_CACHE,
                    ?SC_ITEM_PUT_OBJ,
@@ -197,6 +200,7 @@
 -define(SCENARIO_1, {"SCENARIO-1", [?SC_ITEM_UPDATE_LOG_LEVEL,
                                     ?SC_ITEM_DUMP_RING,
                                     ?SC_ITEM_CREATE_BUCKET,
+                                    ?SC_ITEM_UPDATE_CONSISTENCY_LEVEL,
                                     ?SC_ITEM_PURGE_CACHE,
                                     ?SC_ITEM_RECOVER_FILE,
                                     ?SC_ITEM_GET_OBJ_NOT_FOUND,

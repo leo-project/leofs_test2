@@ -61,6 +61,52 @@ run(?F_UPDATE_LOG_LEVEL, _S3Conf) ->
             io:format("[ERROR] update_log_level failed. the value not changed. val:~p~n", [Other]),
             halt()
     end;
+run(?F_UPDATE_CONSISTENCY_LEVEL, S3Conf) ->
+    {ok, _} = libleofs:update_consistency_level(?S3_HOST, ?LEOFS_ADM_JSON_PORT, 2, 2, 2),
+    {ok, [{<<"system_info">>, SysInfo}|_]} = libleofs:status(?S3_HOST, ?LEOFS_ADM_JSON_PORT),
+    case proplists:get_value(<<"r">>, SysInfo) of
+        2 ->
+            ok;
+        RC ->
+            io:format("[ERROR] update_consistency_level failed. the value 'r' not changed. val:~p~n", [RC]),
+            halt()
+    end,
+    case proplists:get_value(<<"w">>, SysInfo) of
+        2 ->
+            ok;
+        WC ->
+            io:format("[ERROR] update_consistency_level failed. the value 'w' not changed. val:~p~n", [WC]),
+            halt()
+    end,
+    case proplists:get_value(<<"d">>, SysInfo) of
+        2 ->
+            ok;
+        DC ->
+            io:format("[ERROR] update_consistency_level failed. the value 'd' not changed. val:~p~n", [DC]),
+            halt()
+    end,
+    %% Check if consistency level have really changed.
+    Bucket = ?env_bucket(),
+    Key = gen_key(1),
+    Key4LeoFS = list_to_binary(lists:append([Bucket, "/", Key])),
+    Val = crypto:strong_rand_bytes(16),
+    Nodes = get_storage_nodes(),
+    Node = lists:nth(rand:uniform(length(Nodes)), Nodes),
+    {ok, _} = rpc:call(Node, leo_storage_handler_object,
+                  debug_put, [Key4LeoFS, Val, 1]),
+    try
+        Ret = erlcloud_s3:get_object(Bucket, Key, S3Conf),
+        %% get_object should fail due to lack of replica.
+        io:format("[ERROR] get_object which was supposed to fail succeeded. ret val:~p~n", [Ret]),
+        halt()
+    catch
+        _:_ ->
+        %% 500 error should happen
+        ok
+    after
+        %% rollback to the original setting
+        {ok, _} = libleofs:update_consistency_level(?S3_HOST, ?LEOFS_ADM_JSON_PORT, 1, 1, 1)
+    end;
 run(?F_DUMP_RING, _S3Conf) ->
     {ok, _} = libleofs:dump_ring(?S3_HOST, ?LEOFS_ADM_JSON_PORT, atom_to_list(?DUMP_RING_NODE)),
     Dir = lists:append([?env_leofs_dir(), "/leo_storage_1/log/ring"]),
