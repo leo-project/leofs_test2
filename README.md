@@ -101,21 +101,34 @@ $ ./leofs_test -d /home/yosuke/dev/leo/test/leofs-1.2.5-dev/package -t check_red
 
 ## Milestone
 
-### v0.4: Improve the basic scenarios retrieved from leofs-adm's commands
+### v0.4: Improve the basic scenarios retrieved from leofs-adm's commands Phase 1 (LeoFS 1.4.2 will come out with v0.4 tests passed)
 
-1. check whether mq-(suspend|resume) works
-2. check whether recover-(file|ring|cluster) works
+1. check whether mq-(suspend|resume|stats) works
+2. check whether recover-(file|node|consistency) works
 3. check whether compaction-(suspend|resume) works
-4. check whether du (detail) works
+4. check whether du works
 5. check whether purge-cache works
-6. check whether remove-gateway works
-7. check whether (backup|restore)-mnesia works
-8. check whether update-managers works
-9. check whether dump-ring works
+6. check whether (backup|restore)-mnesia works
+7. check whether dump-ring works
+8. check whether update-consistency-level works
+9. check whether update-log-level works
 10. check whether user related functions work
 11. check whether endpoint related functions work
 12. check whether bucket related functions work
-13. check whether multi-dc related functions work
+13. check whether rollback works
+14. check whether multipart uploads work
+15. move onto rebar3
+16. add the scenario-7 for the scrub cluster usecase
+
+### v0.5: Improve the basic scenarios retrieved from leofs-adm's commands Phase 2
+
+1. check whether recover-(ring|cluster|disk)
+2. check whether du detail works
+3. check whether remove-gateway works
+4. check whether update-managers works
+5. check whether multi-dc related functions work
+6. check whether chown-bucket works
+7. check whether update-acl works
 
 ### v0.6: Implement the advanced scenarios (mainly in case of failures)
 

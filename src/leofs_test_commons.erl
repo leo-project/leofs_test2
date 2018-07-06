@@ -37,6 +37,8 @@
 -define(RECOVER_NODE,  'storage_2@127.0.0.1').
 -define(TAKEOVER_NODE, 'storage_4@127.0.0.1').
 
+-define(MNESIA_BACKUP_PATH, "mnesia.bak").
+
 %% MQ related
 -define(MQ_QUEUE_SUSPENDED, "leo_per_object_queue").
 -define(MQ_STATE_SUSPENDING_FORCE, "suspending(force)").
@@ -51,6 +53,103 @@ run(?F_DELETE_BUCKET, S3Conf) ->
     catch erlcloud_s3:delete_bucket(?env_bucket(), S3Conf),
     timer:sleep(timer:seconds(10)),
     ok;
+%% mnesia backup/restore
+run(?F_MNESIA, _S3Conf) ->
+    {ok, _} = libleofs:backup_mnesia(?S3_HOST, ?LEOFS_ADM_JSON_PORT, ?MNESIA_BACKUP_PATH),
+
+    %% update mnesia records
+    UserID = "user",
+    Endpoint = "endpoint",
+    Bucket = "bucket",
+    AccessKey = "05236",
+    {ok, _} = libleofs:create_user(?S3_HOST, ?LEOFS_ADM_JSON_PORT, UserID, "foo"),
+    {ok, _} = libleofs:add_endpoint(?S3_HOST, ?LEOFS_ADM_JSON_PORT, Endpoint),
+    {ok, _} = libleofs:add_bucket(?S3_HOST, ?LEOFS_ADM_JSON_PORT, Bucket, AccessKey),
+
+    {ok, _} = libleofs:restore_mnesia(?S3_HOST, ?LEOFS_ADM_JSON_PORT, ?MNESIA_BACKUP_PATH),
+
+    %% check if records updated before restoring mnesia are gone
+    {ok, UserList} = libleofs:get_users(?S3_HOST, ?LEOFS_ADM_JSON_PORT),
+    BinUID = list_to_binary(UserID),
+    [] = lists:filter(fun(U) ->
+                          proplists:get_value(<<"user_id">>, U) =:= BinUID
+                      end, UserList),
+    {ok, EndpointList} = libleofs:get_endpoints(?S3_HOST, ?LEOFS_ADM_JSON_PORT),
+    BinEndpoint = list_to_binary(Endpoint),
+    [] = lists:filter(fun(E) ->
+                          proplists:get_value(<<"endpoint">>, E) =:= BinEndpoint
+                      end, EndpointList),
+    {ok, BucketList} = libleofs:get_buckets(?S3_HOST, ?LEOFS_ADM_JSON_PORT),
+    BinBucket = list_to_binary(Bucket),
+    [] = lists:filter(fun(B) ->
+                          proplists:get_value(<<"bucket">>, B) =:= BinBucket
+                      end, BucketList),
+    ok;
+%% user/endpoint/bucket CRUD
+run(?F_USER_CRUD, _S3Conf) ->
+    UserID = "user",
+    {ok, _} = libleofs:create_user(?S3_HOST, ?LEOFS_ADM_JSON_PORT, UserID, "foo"),
+    {ok, _} = libleofs:update_user_password(?S3_HOST, ?LEOFS_ADM_JSON_PORT, UserID, "bar"),
+    {ok, _} = libleofs:update_user_role(?S3_HOST, ?LEOFS_ADM_JSON_PORT, UserID, "9"),
+    {ok, UserList} = libleofs:get_users(?S3_HOST, ?LEOFS_ADM_JSON_PORT),
+    BinUID = list_to_binary(UserID),
+    Pred = fun(U) ->
+               case proplists:get_value(<<"user_id">>, U) of
+                   BinUID ->
+                       proplists:get_value(<<"role_id">>, U) =:= 9;
+                   _ ->
+                       false
+               end
+           end,
+    [_H|_] = lists:filter(Pred, UserList),
+    {ok, _} = libleofs:delete_user(?S3_HOST, ?LEOFS_ADM_JSON_PORT, UserID),
+    {ok, UserList2} = libleofs:get_users(?S3_HOST, ?LEOFS_ADM_JSON_PORT),
+    [] = lists:filter(Pred, UserList2),
+    ok;
+run(?F_ENDPOINT_CRUD, _S3Conf) ->
+    Endpoint = "endpoint",
+    {ok, _} = libleofs:add_endpoint(?S3_HOST, ?LEOFS_ADM_JSON_PORT, Endpoint),
+    {ok, EndpointList} = libleofs:get_endpoints(?S3_HOST, ?LEOFS_ADM_JSON_PORT),
+    BinEndpoint = list_to_binary(Endpoint),
+    Pred = fun(E) ->
+               case proplists:get_value(<<"endpoint">>, E) of
+                   BinEndpoint ->
+                       true;
+                   _ ->
+                       false
+               end
+           end,
+    [_H|_] = lists:filter(Pred, EndpointList),
+    {ok, _} = libleofs:delete_endpoint(?S3_HOST, ?LEOFS_ADM_JSON_PORT, Endpoint),
+    {ok, EndpointList2} = libleofs:get_endpoints(?S3_HOST, ?LEOFS_ADM_JSON_PORT),
+    [] = lists:filter(Pred, EndpointList2),
+    ok;
+run(?F_BUCKET_CRUD, _S3Conf) ->
+    Bucket = "bucket",
+    AccessKey = "05236",
+    {ok, _} = libleofs:add_bucket(?S3_HOST, ?LEOFS_ADM_JSON_PORT, Bucket, AccessKey),
+    %% {error, <<"Already yours">>
+    {error, _} = libleofs:add_bucket(?S3_HOST, ?LEOFS_ADM_JSON_PORT, Bucket, AccessKey),
+    {ok, BucketList} = libleofs:get_buckets(?S3_HOST, ?LEOFS_ADM_JSON_PORT),
+    BinBucket = list_to_binary(Bucket),
+    Pred = fun(B) ->
+               case proplists:get_value(<<"bucket">>, B) of
+                   BinBucket ->
+                       true;
+                   _ ->
+                       false
+               end
+           end,
+    [_|_] = lists:filter(Pred, BucketList),
+    {ok, BucketList2} = libleofs:get_buckets(?S3_HOST, ?LEOFS_ADM_JSON_PORT, AccessKey),
+    [_|_] = lists:filter(Pred, BucketList2),
+    {ok, _} = libleofs:delete_bucket(?S3_HOST, ?LEOFS_ADM_JSON_PORT, Bucket, AccessKey),
+    {ok, BucketList3} = libleofs:get_buckets(?S3_HOST, ?LEOFS_ADM_JSON_PORT),
+    [] = lists:filter(Pred, BucketList3),
+    {ok, BucketList4} = libleofs:get_buckets(?S3_HOST, ?LEOFS_ADM_JSON_PORT, AccessKey),
+    [] = lists:filter(Pred, BucketList4),
+    timer:sleep(timer:seconds(10)), %% Wait until background delete-bucket process finishes
+    ok;
 run(?F_UPDATE_LOG_LEVEL, _S3Conf) ->
     {ok, _} = libleofs:update_log_level(?S3_HOST, ?LEOFS_ADM_JSON_PORT, atom_to_list(?UPDATE_LOG_LEVEL_NODE), "warn"),
     {ok, [{<<"node_stat">>, NodeStat}]} = libleofs:status(?S3_HOST, ?LEOFS_ADM_JSON_PORT, atom_to_list(?UPDATE_LOG_LEVEL_NODE)),
@@ -60,6 +159,52 @@ run(?F_UPDATE_LOG_LEVEL, _S3Conf) ->
         Other ->
             io:format("[ERROR] update_log_level failed. the value not changed. val:~p~n", [Other]),
             halt()
+    end;
+run(?F_UPDATE_CONSISTENCY_LEVEL, S3Conf) ->
+    {ok, _} = libleofs:update_consistency_level(?S3_HOST, ?LEOFS_ADM_JSON_PORT, 2, 2, 2),
+    {ok, [{<<"system_info">>, SysInfo}|_]} = libleofs:status(?S3_HOST, ?LEOFS_ADM_JSON_PORT),
+    case proplists:get_value(<<"r">>, SysInfo) of
+        2 ->
+            ok;
+        RC ->
+            io:format("[ERROR] update_consistency_level failed. the value 'r' not changed. val:~p~n", [RC]),
+            halt()
+    end,
+    case proplists:get_value(<<"w">>, SysInfo) of
+        2 ->
+            ok;
+        WC ->
+            io:format("[ERROR] update_consistency_level failed. the value 'w' not changed. val:~p~n", [WC]),
+            halt()
+    end,
+    case proplists:get_value(<<"d">>, SysInfo) of
+        2 ->
+            ok;
+        DC ->
+            io:format("[ERROR] update_consistency_level failed. the value 'd' not changed. val:~p~n", [DC]),
+            halt()
+    end,
+    %% Check if consistency level have really changed.
+    Bucket = ?env_bucket(),
+    Key = gen_key(1),
+    Key4LeoFS = list_to_binary(lists:append([Bucket, "/", Key])),
+    Val = crypto:strong_rand_bytes(16),
+    Nodes = get_storage_nodes(),
+    Node = lists:nth(rand:uniform(length(Nodes)), Nodes),
+    {ok, _} = rpc:call(Node, leo_storage_handler_object,
+                  debug_put, [Key4LeoFS, Val, 1]),
+    try
+        Ret = erlcloud_s3:get_object(Bucket, Key, S3Conf),
+        %% get_object should fail due to lack of replica.
+        io:format("[ERROR] get_object which was supposed to fail succeeded. ret val:~p~n", [Ret]),
+        halt()
+    catch
+        _:_ ->
+        %% 500 error should happen
+        ok
+    after
+        %% rollback to the original setting
+        {ok, _} = libleofs:update_consistency_level(?S3_HOST, ?LEOFS_ADM_JSON_PORT, 1, 1, 1)
     end;
 run(?F_DUMP_RING, _S3Conf) ->
     {ok, _} = libleofs:dump_ring(?S3_HOST, ?LEOFS_ADM_JSON_PORT, atom_to_list(?DUMP_RING_NODE)),
