@@ -69,33 +69,133 @@ Usage: leofs_test [-b <bucket>] [-c <cookie>] [-d <leofs_dir>] [-k <keys>] [-m <
 $ ./leofs_test -d <leofs-package-dir> -b <bucket> -k 10000 -c leofs_test
 
 ...
+ [{bucket,"test"},
+  {leofs_dir,"/home/leofs/dev/projects/leo-project/leofs/package/"}]
 
 ::: START :::
 
  [SCENARIO-1]
+   * mnesia (test mnesia backup/restore)
+   * user_crud (test user related CRUD)
+   * endpoint_crud (test endpoint related CRUD)
+   * bucket_crud (test bucket related CRUD)
+   * watch_mq (watch state of mq)
+        #1
+            * 'storage_0@127.0.0.1':[N/A]
+            * 'storage_1@127.0.0.1':[N/A]
+            * 'storage_2@127.0.0.1':[N/A]
+            * 'storage_3@127.0.0.1':[N/A]
+   * update_log_level (update log level of a node)
+   * dump_ring (dump ring data to the local disk)
    * create_bucket (create a bucket)
-   * put_objects (put objects)-------------------------------------------|
-   * check_redundancies (check redundancies of replicas)-----------------|
-   * del_objects (del objects)-------------------------------------------|
-   * check_redundancies (check redundancies of replicas)-----------------|
- ...
- [SCENARIO-5]
-   * remove_avs (remove avs of a node)
-   * recover_node (recover data of a node)
-   * watch_mq (watch state of mq)-----------------------------|
-   * check_redundancies (check redundancies of replicas)-----------------|
-::: Finished (1617sec) :::
+   * update_consistency_level (update consistency level of a node)
+   * purge_cache (remove a cache from each gateway)
+   * recover_file (recover data of a file)
+        #1
+            * 'storage_0@127.0.0.1':[N/A]
+            * 'storage_1@127.0.0.1':[N/A]
+            * 'storage_2@127.0.0.1':[N/A]
+            * 'storage_3@127.0.0.1':[N/A]
+        #1
+            * 'storage_0@127.0.0.1':[N/A]
+            * 'storage_1@127.0.0.1':[N/A]
+            * 'storage_2@127.0.0.1':[N/A]
+            * 'storage_3@127.0.0.1':[N/A]
+   * get_objects_not_found (get objects_not_found)....................................................................................................|
+   * put_zero_byte_objects (put zero byte objects)....................................................................................................|
+   * get_objects (get objects)....................................................................................................|
+   * put_objects (put objects)....................................................................................................|
+   * get_objects (get objects)....................................................................................................|
+   * check_redundancies (check redundancies of replicas)....................................................................................................|
+   * del_objects (remove objects)....................................................................................................|
+   * check_redundancies (check redundancies of replicas)....................................................................................................|
+   * mp_upload_normal (multipart upload)
+   * mp_upload_normal_in_parallel (multipart upload in parallel)
+   * mp_upload_abort (abort multipart upload)
+        #1
+            * 'storage_0@127.0.0.1':[{leo_delete_dir_queue_1,4}]
+            * 'storage_1@127.0.0.1':[{leo_delete_dir_queue_1,2}]
+            * 'storage_2@127.0.0.1':[{leo_delete_dir_queue_1,4}]
+            * 'storage_3@127.0.0.1':[{leo_delete_dir_queue_1,3}]
+        #2
+            * 'storage_0@127.0.0.1':[{leo_delete_dir_queue_1,2}]
+            * 'storage_1@127.0.0.1':[{leo_delete_dir_queue_1,1}]
+            * 'storage_2@127.0.0.1':[{leo_delete_dir_queue_1,1}]
+            * 'storage_3@127.0.0.1':[{leo_delete_dir_queue_1,3}]
+        #3
+            * 'storage_0@127.0.0.1':[{leo_delete_dir_queue_1,2}]
+            * 'storage_1@127.0.0.1':[N/A]
+            * 'storage_2@127.0.0.1':[N/A]
+            * 'storage_3@127.0.0.1':[N/A]
+        #4
+            * 'storage_0@127.0.0.1':[N/A]
+            * 'storage_1@127.0.0.1':[N/A]
+            * 'storage_2@127.0.0.1':[N/A]
+            * 'storage_3@127.0.0.1':[N/A]
+   * mp_upload_invalid_complete (invalid complete multipart upload)
+.
+.
+.
+ [SCENARIO-7]
+   * delete_bucket (delete a bucket)
+   * watch_mq (watch state of mq)
+        #1
+            * 'storage_1@127.0.0.1':[{leo_delete_dir_queue_1,3165}]
+            * 'storage_2@127.0.0.1':[{leo_delete_dir_queue_1,4399}]
+            * 'storage_3@127.0.0.1':[{leo_delete_dir_queue_1,2679}]
+            * 'storage_4@127.0.0.1':[{leo_delete_dir_queue_1,1844}]
+        #2
+            * 'storage_1@127.0.0.1':[{leo_delete_dir_queue_1,442}]
+            * 'storage_2@127.0.0.1':[{leo_delete_dir_queue_1,713}]
+            * 'storage_3@127.0.0.1':[{leo_delete_dir_queue_1,208}]
+            * 'storage_4@127.0.0.1':[{leo_delete_dir_queue_1,1012}]
+        #3
+            * 'storage_1@127.0.0.1':[N/A]
+            * 'storage_2@127.0.0.1':[N/A]
+            * 'storage_3@127.0.0.1':[N/A]
+            * 'storage_4@127.0.0.1':[{leo_delete_dir_queue_1,609}]
+        #4
+            * 'storage_1@127.0.0.1':[N/A]
+            * 'storage_2@127.0.0.1':[N/A]
+            * 'storage_3@127.0.0.1':[N/A]
+            * 'storage_4@127.0.0.1':[N/A]
+   * create_bucket (create a bucket)
+   * get_objects_not_found (get objects_not_found)....................................................................................................|
+   * put_inconsistent_objects (put inconsistent objects)....................................................................................................|
+   * scrub_cluster (scrub the whole cluster)
+        #1
+            * 'storage_1@127.0.0.1':[{leo_per_object_queue,4470}]
+            * 'storage_2@127.0.0.1':[N/A]
+            * 'storage_3@127.0.0.1':[N/A]
+            * 'storage_4@127.0.0.1':[N/A]
+        #2
+            * 'storage_1@127.0.0.1':[{leo_per_object_queue,2552}]
+            * 'storage_2@127.0.0.1':[N/A]
+            * 'storage_3@127.0.0.1':[N/A]
+            * 'storage_4@127.0.0.1':[N/A]
+        #3
+            * 'storage_1@127.0.0.1':[{leo_per_object_queue,13}]
+            * 'storage_2@127.0.0.1':[N/A]
+            * 'storage_3@127.0.0.1':[N/A]
+            * 'storage_4@127.0.0.1':[N/A]
+        #4
+            * 'storage_1@127.0.0.1':[N/A]
+            * 'storage_2@127.0.0.1':[N/A]
+            * 'storage_3@127.0.0.1':[N/A]
+            * 'storage_4@127.0.0.1':[N/A]
+   * check_redundancies (check redundancies of replicas)....................................................................................................|
+::: Finished (817sec) :::
 ```
 
 * Example - Execute only a test
 
 ```bash
-$ ./leofs_test -d /home/yosuke/dev/leo/test/leofs-1.2.5-dev/package -t check_redundancies
+$ ./leofs_test -d leofs/package -t check_redundancies
 ...
 :: TEST: check_redundancies (check redundancies of replicas)::::
 
  [TEST]
-   * check_redundancies (check redundancies of replicas)-----------------|
+   * check_redundancies (check redundancies of replicas)....................................................................................................|
 ::: Finished (13sec) :::
 ```
 
