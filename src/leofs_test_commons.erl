@@ -345,10 +345,12 @@ run(?F_SCRUB_CLUSTER,_S3Conf) ->
 run(?F_MQ_SUSPEND_QUEUE,_S3Conf) ->
     ok = mq_suspend_queue(atom_to_list(?SUSPEND_NODE), ?MQ_QUEUE_SUSPENDED),
     ok = mq_wait_until(atom_to_list(?SUSPEND_NODE), ?MQ_QUEUE_SUSPENDED, [?MQ_STATE_SUSPENDING_FORCE]),
+    timer:sleep(timer:seconds(5)),
     ok;
 run(?F_MQ_RESUME_QUEUE,_S3Conf) ->
     ok = mq_resume_queue(atom_to_list(?RESUME_NODE), ?MQ_QUEUE_SUSPENDED),
     ok = mq_wait_until(atom_to_list(?RESUME_NODE), ?MQ_QUEUE_SUSPENDED, [?MQ_STATE_IDLING, ?MQ_STATE_RUNNING]),
+    timer:sleep(timer:seconds(5)),
     ok;
 %% MP(multipart upload) related
 run(?F_MP_UPLOAD_NORMAL, S3Conf) ->
