@@ -281,6 +281,7 @@ run(?F_CHECK_REPLICAS, S3Conf) ->
 %% Operate a node
 run(?F_ATTACH_NODE,_S3Conf) ->
     ok = attach_node(?ATTACH_NODE),
+    timer:sleep(timer:seconds(10)),
     ok;
 run(?F_TAKEOVER,_S3Conf) ->
     DetachedNode = ?DETACH_NODE_1,
