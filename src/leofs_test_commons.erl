@@ -1208,6 +1208,7 @@ recover_consistency() ->
     recover_consistency(Nodes).
 
 recover_consistency([]) ->
+    timer:sleep(timer:seconds(10)),
     ok;
 recover_consistency([H|Rest]) ->
     ok = recover(H, "consistency"),
