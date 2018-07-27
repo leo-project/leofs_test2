@@ -229,6 +229,10 @@ $ ./leofs_test -d leofs/package -t check_redundancies
 5. check whether multi-dc related functions work
 6. check whether chown-bucket works
 7. check whether update-acl works
+8. check whether GET existing objects works while rebalance is ongoing with R=1,2
+9. check whether GET existing objects **doesn't** work while rebalance is ongoing with R=3
+10. check whether GET updated-after-rebalance objects works while rebalance is ongoing with R=1,2
+11. check whether GET updated-after-rebalance objects **doesn't** work while rebalance is ongoing with R=3
 
 ### v0.6: Implement the advanced scenarios (mainly in case of failures)
 
