@@ -416,7 +416,7 @@ run(?F_MP_UPLOAD_ABORT, S3Conf) ->
         Results = [begin
                        {ok, Redundancies} = rpc:call(?env_manager(), leo_manager_api, whereis, [[Key4Chunk], true]),
                        case lists:any(
-                              fun({_, not_found}) ->
+                              fun({_, {error, not_found}}) ->
                                       true;
                                  ({_, Fields}) when is_list(Fields) ->
                                       case proplists:get_value(del, Fields, 0) of
